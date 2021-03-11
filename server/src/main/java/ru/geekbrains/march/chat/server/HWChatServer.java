@@ -62,7 +62,7 @@ public class HWChatServer
                             System.out.println(s);
                     }
                 }
-                Thread.sleep(250); //< уменьшаем нагрузку на ЦП, вызванную применением available() (хорошо помогает).
+                else Thread.sleep(250); //< уменьшаем нагрузку на ЦП, вызванную применением available() (хорошо помогает).
             }
             threadConsoleInput.join(1000); //< К сожалению, закрытия потока threadConsoleInput мы так не дождёмся, но
             // это даст возможность клиенту писать в стрим ответные сообщения /exit без вызова исключений.
@@ -99,7 +99,7 @@ public class HWChatServer
                             appGettingOff = true;
                     }
                 }
-                Thread.sleep(250); //< уменьшаем нагрузку на ЦП, вызванную применением available() (хорошо помогает).
+                else Thread.sleep(250); //< уменьшаем нагрузку на ЦП, вызванную применением available() (хорошо помогает).
             }
             catch (IOException e){e.printStackTrace();} //< для System.in.available() и dos.writeUTF()
             catch (InterruptedException e){System.err.println("Thread.sleep() поймал эксепшн.");}

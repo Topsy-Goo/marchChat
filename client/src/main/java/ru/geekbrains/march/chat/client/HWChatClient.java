@@ -110,7 +110,7 @@ public class HWChatClient extends Application implements Initializable
                     else
                         txtareaMessages.appendText (s +'\n');
                 }
-                Thread.sleep(250); //< уменьшаем нагрузку на ЦП, вызванную применением available() (хорошо помогает).
+                else Thread.sleep(250); //< уменьшаем нагрузку на ЦП, вызванную применением available() (хорошо помогает).
             }
             catch (EOFException eofe)
             {
