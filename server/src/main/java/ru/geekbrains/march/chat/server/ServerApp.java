@@ -1,7 +1,5 @@
 package ru.geekbrains.march.chat.server;
 
-import javafx.scene.control.Alert;
-import javafx.scene.control.ButtonType;
 
 public class ServerApp
 {
@@ -20,7 +18,7 @@ public class ServerApp
             SLEEP_INTERVAL = 250;
 
 
-    public static void main (String[] args) throws Exception
+    public static void main (String[] args)
     {
         new Server(SERVER_PORT);
     // завершение работы с клиентом
