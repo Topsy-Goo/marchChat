@@ -144,6 +144,7 @@ public class HWChatClient extends Application implements Initializable
                 txtareaMessages.appendText (s +'\n');
             sendMessage (s);
             txtfieldMessage.clear();
+            txtfieldMessage.requestFocus();
         }
     }// onactionSendMessage ()
 

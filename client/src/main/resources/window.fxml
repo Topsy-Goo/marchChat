@@ -8,20 +8,65 @@
 <?import javafx.scene.layout.HBox?>
 <?import javafx.scene.control.TextField?>
 <?import javafx.scene.control.TextArea?>
-<VBox	fx:controller="ru.geekbrains.march.chat.client.Controller"
-		xmlns:fx="http://javafx.com/fxml"
-		alignment="center">
+<?import javafx.scene.text.Text?>
+<VBox fx:controller="ru.geekbrains.march.chat.client.Controller"
+	  xmlns:fx="http://javafx.com/fxml"
+	  alignment="center">
 
-	<TextArea fx:id="txtareaMessages" VBox.vgrow="ALWAYS" editable="false"/>
+	<HBox alignment="BASELINE_CENTER">
+		<VBox.margin>
+			<Insets top="5" bottom="2" right="5" left="5"/>
+		</VBox.margin>
 
-	<HBox>
-		<TextField	fx:id="txtfieldMessage"
-					onAction="#onactionSendMessage"
-					HBox.hgrow="ALWAYS"
-					promptText="Введите сообщение:"/>
+		<Text fx:id="txtIntroduction"/>
 
-		<Button text="Отправить"
-				onAction="#onactionSendMessage"/>
+		<TextField
+			fx:id="txtfieldUsernameField"
+			HBox.hgrow="ALWAYS"
+			onAction="#onactionLogin"
+			promptText="Введите логин здесь.">
+
+			<HBox.margin>
+				<Insets right="5" left="5"/>
+			</HBox.margin>
+
+		</TextField>
+
+		<Button fx:id="buttonLogin" onAction="#onactionLogin" text="Войти"/>
+	</HBox>
+
+	<TextArea
+			fx:id="txtareaMessages"
+			VBox.vgrow="ALWAYS"
+			editable="false">
+
+		<VBox.margin>
+			<Insets top="5" bottom="3" right="3" left="5"/>
+		</VBox.margin>
+
+	</TextArea>
+
+	<HBox visible="false" managed="false" fx:id="hboxMessagePanel">
+
+		<VBox.margin>
+			<Insets top="2" bottom="5" right="5" left="5"/>
+		</VBox.margin>
+	<!--
+	visible="false" прячет элемент, но оставляет под него место. Если требуется скрыть и
+	его место (расширить на это место соседний элемент), то требуется указать:	managed="false".
+	-->
+		<TextField
+			fx:id="txtfieldMessage"
+			onAction="#onactionSendMessage"
+			HBox.hgrow="ALWAYS"
+			promptText="Введите сообщение:">
+
+			<HBox.margin>
+				<Insets right="5" left="5"/>
+			</HBox.margin>
+		</TextField>
+
+		<Button text="Отправить" onAction="#onactionSendMessage"/>
 	</HBox>
 
 </VBox>

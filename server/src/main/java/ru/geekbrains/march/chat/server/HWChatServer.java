@@ -105,7 +105,7 @@ public class HWChatServer
             catch (InterruptedException e){System.err.println("Thread.sleep() поймал эксепшн.");}
         }
         sc.close();
-        System.out.println ("\n(consoleInputThread() завершилась)"); //< для отладки
+        System.out.println ("\n(consoleInputThread() завершилась.)"); //< для отладки
     }// consoleInputThread ()
 
 
