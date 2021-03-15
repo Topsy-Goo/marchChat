@@ -13,7 +13,7 @@ public class Hw7Server
     public static final boolean VALIDATE_AND_ADD = true;
 
     private int port = 0;
-    private List<Hw7ClientHandler> clients = null;
+    private List<Hw7ClientHandler> clients;
 
     public Hw7Server (int port)
     {

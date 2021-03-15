@@ -26,7 +26,7 @@ public class HWChatClient extends Application implements Initializable
 {
     private static final String SERVER_ADDRESS = "localhost";
     private static boolean appGettingOff = false;
-    private static Thread  threadDisListener = null;
+    private static Thread  threadDisListener;
     private static DataInputStream dis;
     private static DataOutputStream dos;
 
@@ -100,7 +100,7 @@ public class HWChatClient extends Application implements Initializable
                 {
                     s = dis.readUTF(); //< если стрим пуст, этот вызов застопорит выполнение потока (будет ждать данные)
 
-                    if (s.equals (HWChatServer.msgEXIT))
+                    if (s.equals(HWChatServer.CMD_EXIT))
                     {
                         System.out.println("treadDISListener получил /exit.");
                         appGettingOff = true;
@@ -136,11 +136,11 @@ public class HWChatClient extends Application implements Initializable
         String s = txtfieldMessage.getText().trim();
 
         if (!s.isEmpty())
-        if (s.equalsIgnoreCase (HWChatServer.msgEXIT))
+        if (s.equalsIgnoreCase(HWChatServer.CMD_EXIT))
             onactionSendExitMessage();
         else
         {
-            if (!s.equals(HWChatServer.msgSTAT))
+            if (!s.equals(HWChatServer.CMD_STAT))
                 txtareaMessages.appendText (s +'\n');
             sendMessage (s);
             txtfieldMessage.clear();
@@ -152,7 +152,7 @@ public class HWChatClient extends Application implements Initializable
     @FXML public void onactionSendExitMessage ()
     {
         System.out.println("onactionSendExitMessage() старт.");
-        sendMessage (HWChatServer.msgEXIT);
+        sendMessage(HWChatServer.CMD_EXIT);
         txtfieldMessage.clear();
         appExit();
         System.out.println("onactionSendExitMessage() финиш.");
@@ -161,7 +161,7 @@ public class HWChatClient extends Application implements Initializable
 // Кнопка «Статистика»
     @FXML public void onactionSendStatMessage ()
     {
-        sendMessage (HWChatServer.msgSTAT);
+        sendMessage(HWChatServer.CMD_STAT);
     }
 
 // (Вспомогательная.) Помещает указанное сообщение в выходной поток.

@@ -9,22 +9,19 @@ import java.security.InvalidParameterException;
 import static ru.geekbrains.march.chat.server.Server.VALIDATE_AND_ADD;
 import static ru.geekbrains.march.chat.server.ServerApp.*;
 
-public class ClientHandler// implements Closeable
+public class ClientHandler
 {
-    public static final boolean BROADCAST_MSG = true, PRIVATE_MSG = !BROADCAST_MSG;
-    private String clientName = null; //< После регистрации пользователя clientName == Controller.userName.
-
+    private String clientName; //< После регистрации пользователя clientName == Controller.userName.
     private int msgCounter = 0;
-
-    private Socket socket = null;
-    private Server server = null;
-    private DataInputStream dis = null;
-    private DataOutputStream dos = null;
-    private Thread //threadConsoleToClient = null,
-                   threadClientToServer = null,
-                   threadCloser = null,
-                   threadMain = null;
     private boolean connectionGettingClosed = false;
+
+    private Socket socket;
+    private Server server;
+    private DataInputStream dis;
+    private DataOutputStream dos;
+    private Thread threadClientToServer,
+                   threadCloser,
+                   threadMain;
 
 
     public ClientHandler (Server serv, Socket sock)
@@ -43,9 +40,7 @@ public class ClientHandler// implements Closeable
         // Чтобы освободить поток main() для подключения других клиентов, выносим обработчики сообщений
         // в отдельные потоки.
             threadClientToServer = new Thread(() -> runThreadClientToServer());
-            //threadConsoleToClient = new Thread(() -> runThreadConsoleToClient());
             threadClientToServer.start();
-            //threadConsoleToClient.start();
             sendMessageToClient ("Соединение с сервером установлено.\nСервер ожидает регистрации пользователя.");
         }
         catch (IOException ioe)
@@ -68,44 +63,50 @@ public class ClientHandler// implements Closeable
                 {
                     msg = dis.readUTF().trim();
 
+//Я считаю, что 2 цикла while здесь не подходят, т.к. сервер, например, должен иметь возможность отправить /exit
+//клиенту, который ещё не авторизовался.
+
                     if (!msg.isEmpty())
-                    if (msg.equalsIgnoreCase (msgEXIT)) //< Приложение клиента прислало запрос «/exit».
+                    if (msg.equalsIgnoreCase(CMD_EXIT)) //< Приложение клиента прислало запрос «/exit».
                     {
                         connectionGettingClosed = true;
                     }
-                    else if (msg.equalsIgnoreCase (msgONLINE))
+                    else if (msg.equalsIgnoreCase(CMD_ONLINE))
                     {
                         ; // (нет необходимости реагировать на это сообщение)
                     }
                     else if (server != null) //< если сервер ещё не упал
                     {
-                        if (msg.startsWith (loginPREFIX))
+                        if (msg.startsWith (LOGIN_PREFIX))
                         {
-                            clientName = msg.substring (loginPREFIX.length());
+                            clientName = msg.substring (LOGIN_PREFIX.length());
 
                             if (server.validateUser (this, VALIDATE_AND_ADD))
                             {
-                                dos.writeUTF (loginPREFIX + clientName);
+                                dos.writeUTF (LOGIN_PREFIX + clientName);
                                 server.broadcastMessage ("(вошёл в чат)", this);
                             }
-                            else dos.writeUTF (msgLOGIN); //< Серверу не понравилось введённое пользователем имя.
+                            else dos.writeUTF (CMD_LOGIN); //< Серверу не понравилось введённое пользователем имя.
                         }
                         else if (clientName != null) //< сообщения только для зарегистрированного клиента
                         {
-                            if (msg.equalsIgnoreCase (msgSTAT)) //< Приложение клиента прислало запрос «/stat».
+                            if (msg.equalsIgnoreCase (CMD_STAT)) //< Приложение клиента прислало запрос «/stat».
                             {
                                 sendMessageToClient("counter = " + msgCounter);
                             }
-                            else if (msg.equalsIgnoreCase (msgWHOAMI))
+                            else if (msg.equalsIgnoreCase (CMD_WHOAMI))
                             {
                                 sendMessageToClient ("Вы вошли в чат как: " + clientName);
                             }
                             else //сообщения, которые нужно считать:
                             {
                                 boolean boolOk = false;
-                                if (msg.startsWith (privatePREFIX)) //< Клиент отправил личное сообщение клиенту.
+                                if (msg.startsWith (PRIVATE_PREFIX)) //< Клиент отправил личное сообщение клиенту.
                                 {
-                                    boolOk = server.sendPrivateMessage (msg.substring (privatePREFIX.length()), this);
+                                    String[] sarr = msg.split ("\\s", 3);
+                                    if (sarr.length > 2)
+                                        boolOk = server.sendPrivateMessage (sarr[1], sarr[2], this);
+                                       //(Если юзера нет, то сервер уже послал клиенту сообщение «такого юзера нет».)
                                 }
                                 else //< Клиент отправил публичное сообщение в чат.
                                 {
@@ -114,7 +115,7 @@ public class ClientHandler// implements Closeable
 
                                 if (boolOk)  msgCounter++;
                                 else
-                                dos.writeUTF (String.format("Ошибка! Не удалось отправить сообщение:\n\t%s", msg));
+                                dos.writeUTF (String.format("Не удалось отправить сообщение:\n\t%s", msg));
                             }
                         }
                     }
@@ -129,7 +130,7 @@ public class ClientHandler// implements Closeable
                     {
                         if (!threadMain.isAlive())
                             break;
-                        dos.writeUTF (msgONLINE); //< «пингуем» клиента на случай, если он отключился без предупреждения
+                        dos.writeUTF(CMD_ONLINE); //< «пингуем» клиента на случай, если он отключился без предупреждения
                         timer = 0;
                     }
                 }
@@ -149,41 +150,6 @@ public class ClientHandler// implements Closeable
     }// runThreadClientToServer ()
 
 
-// (Пришлось лишить приложение возможности общаться с клиентами через консоль из-за странного глюка:
-// если клиент покидает чат отправив серверу /exit, то этот метод падает и, разумеется отключаются
-// все остальные клиенты. Причина глюка пока не выяснена, но, видимо, дело в сканере или ещё каком-то
-// слишком общем ресурсе. Можно, конечно, общаться с клиентами из общего для всех потока, но при этом
-// придётся вводить перед каждой командой имя того, клиента, которому она адресована. В общем, оно того
-// не стоит. Закомментируем это дело.)
-/*    private void runThreadConsoleToClient ()
-    {
-        String msg;
-        try (Scanner sc = new Scanner (System.in))
-        {
-            while (!connectionGettingClosed)
-            {
-                if (System.in.available() > 0)
-                {
-                    msg = sc.nextLine();
-                    if (!msg.isEmpty())
-                    if (msg.trim().equalsIgnoreCase (msgEXIT))
-                    {
-                        connectionGettingClosed = true;
-                    }
-                    sendMessageToClient (msg);
-                }
-                else Thread.sleep(SLEEP_INTERVAL);
-            }//while
-        }
-        catch (InterruptedException intex) {intex.printStackTrace();}
-        catch (IOException ioex) {ioex.printStackTrace();}
-        finally
-        {
-            startCloseThread();
-        }
-        System.out.println ("(Поток threadConsoleToClient закрылся. Клиент:"+clientName+")");
-    }// runThreadConsoleToClient ()     //*/
-
 //(Вспомогательная.)
     public boolean sendMessageToClient (String msg)
     {
@@ -199,7 +165,6 @@ public class ClientHandler// implements Closeable
         return boolSent;
     }// sendMessageToClient ()
 
-    public String getClientName ()  {   return clientName;  }
 
 // Создаём поток, который закрывает ClientHandler. Этот метод остался от реализации, в которой
 // присутствовал поток для чтени из консоли. От консоли пришлось отказаться, а метод остался.
@@ -249,12 +214,14 @@ public class ClientHandler// implements Closeable
         try
         {
             dos.writeUTF ("Сервер прекратил работу.");
-            dos.writeUTF(msgEXIT);
+            dos.writeUTF(CMD_EXIT);
         }
         catch(IOException e){ e.printStackTrace(); }
 
         server = null; //< чтобы никто не пытался вызывать методы сервера
         startCloseThread();
     }// onServerDown ()
+
+    public String getClientName ()  {   return clientName;  }
 
 }// class ClientHandler

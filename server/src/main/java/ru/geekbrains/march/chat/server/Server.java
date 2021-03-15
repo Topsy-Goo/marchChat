@@ -5,27 +5,44 @@ import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Scanner;
+
+import static ru.geekbrains.march.chat.server.ServerApp.*;
 
 public class Server
 {
+    private static final String
+            format_NO_SUCH_USER = "Клиент %s отсутствует в чате.";
+
+    private static int serverNameCounter = 0;
     public static final int PORT_MAX = 65535;
     public static final int PORT_MIN = 0;
     public static final boolean VALIDATE_AND_ADD = true;
+    private final String serverName;
 
     private int port = 0;
-    private List<ClientHandler> clients = null;
+    private List<ClientHandler> clients;
+    private Thread threadConsoleToClient,
+                   threadMain;
+    private boolean connectionGettingClosed = false;
+
 
     public Server (int port)
     {
         if (port < PORT_MIN || port > PORT_MAX)    throw new IllegalArgumentException();
         this.port = port;
         clients = new LinkedList<>();
+        threadMain = Thread.currentThread();
+        serverName = "ЧатСервер_" + serverNameCounter ++;
 
     // создали сокет на порте 8189 (нужно использовать любой свободный порт). Если порт занят,
     // то получим исключение, но, скорее всего, порт 8189 будет свободен.
         try (ServerSocket servsocket = new ServerSocket (port))
         {
+            threadConsoleToClient = new Thread(() -> runThreadConsoleToClient());
+            threadConsoleToClient.start();
             System.out.println ("\nНачало сессии.");
+
             while (true)
             {
                 System.out.println ("\tЖдём подклюение клиента.");
@@ -61,7 +78,7 @@ public class Server
         catch (IOException ioe)
         {
             ioe.printStackTrace();
-            System.out.println("Не удалось создать ClientHandler.");
+            System.out.println ("Не удалось создать ClientHandler.");
         }
         finally
         {
@@ -115,40 +132,59 @@ public class Server
 //Рассылаем указанное сообщение всем клиентам из нашего списка подключенных клиентов.
     public boolean broadcastMessage (String msg, ClientHandler from)
     {
+        //if (from == null)   securityCheckThread();
         boolean boolSent = false;
+
         if (msg != null && !msg.isEmpty() && clients != null)
         {
             for (ClientHandler client : clients)
-                boolSent = client.sendMessageToClient (from.getClientName() + ":\n\t" + msg);
+            {
+                String name = (from != null) ? from.getClientName() : serverName; //< сообщение исходит от сервера (введено в консоли)
+                boolSent = client.sendMessageToClient (name + ":\n\t" + msg);
+            }
         }
         return boolSent;
     }// broadcastMessage ()
 
 //Пересылаем указанное сообщение автору и указанному клиенту. Сообщение получаем в формате: «адресат сообщение».
-    public boolean sendPrivateMessage (String msg, ClientHandler from)
+    public boolean sendPrivateMessage (String nameTo, String message, ClientHandler clientFrom)
     {
+        //if (from == null)   securityCheckThread();
         boolean boolSent = false;
-        if (msg != null && !msg.isEmpty() && clients != null)
-        {
-            int index = msg.trim().indexOf(' ');
-            if (index >= 0)
-            {
-                String name = msg.substring (0, index);
-                for (ClientHandler client : clients)
-                {
-                    if (name.equals (client.getClientName()))
-                    {
-                        from.sendMessageToClient (String.format("Личное сообщение для %s:\n\t%s",
-                                                  name,
-                                                  msg.substring (index+1)));
 
-                        boolSent = client.sendMessageToClient (String.format("Вам личное сообщение от %s:\n\t%s",
-                                                               from.getClientName(),
-                                                               msg.substring (index+1)));
-                        break;
+        if (message != null && !message.isEmpty() &&
+            nameTo  != null && !nameTo.isEmpty()  &&
+            clients != null)
+        {
+            String nameFrom = (clientFrom != null) ? clientFrom.getClientName() : serverName;
+
+            for (ClientHandler clientTo : clients)
+            {
+                if (nameTo.equals (clientTo.getClientName()))
+                {
+                    if (clientFrom != null) //< если сообщение не от сервера, то дублируем его отправителю
+                        clientFrom.sendMessageToClient (String.format(
+                                    "Личное сообщение для %s:\n\t%s",
+                                    nameTo,
+                                    message));
+
+                    if (clientFrom == null)
+                    {
+                        if (message.equalsIgnoreCase (CMD_EXIT)) //< Server научился отключать пользователей.
+                            boolSent = clientTo.sendMessageToClient (CMD_EXIT);
                     }
-                }//for
+                    else boolSent = clientTo.sendMessageToClient (String.format(
+                                        "Вам личное сообщение от %s:\n\t%s",
+                                        nameFrom,
+                                        message));
+                    break;
+                }
             }
+            //проверка отправки сообщения несуществующему клиенту (по результатам разбора ДЗ-7)
+            if (!boolSent)
+                if (clientFrom == null) System.out.printf (format_NO_SUCH_USER, nameTo);
+                else
+                clientFrom.sendMessageToClient (String.format (format_NO_SUCH_USER, nameTo));
         }
         return boolSent;
     }// sendPrivateMessage ()
@@ -163,6 +199,70 @@ public class Server
                 client.onServerDown();
         }
     }// serverGettingDown ()
+
+
+/* (Пришлось лишить ClientHandler возможности общаться с клиентами через консоль из-за странного глюка: если
+ клиент покидает чат отправив серверу /exit, то этот метод падает вместе со всеми (падает main tread ?), и
+  тащит за собой Server (что приводит к отключению остальных клиентов). Причина глюка пока не выяснена, но,
+  видимо, дело в сканере или ещё каком-то общем ресурсе.)    //*/
+    private void runThreadConsoleToClient () //поток threadConsoleToClient
+    {
+        String msg;
+        int timer = 0;
+        try (Scanner sc = new Scanner(System.in))
+        {
+            while (!connectionGettingClosed)
+            {
+                if (System.in.available() > 0)
+                {
+                    msg = sc.nextLine().trim();
+                    if (!msg.isEmpty())
+                    {
+                        if (msg.equalsIgnoreCase(CMD_EXIT))
+                        {
+                            connectionGettingClosed = true; //< Пока это закрывает только поток threadConsoleToClient
+                        }
+                        else if (msg.startsWith(PRIVATE_PREFIX))
+                        {
+                            String[] sarr = msg.split ("\\s", 3);
+
+                            if (sarr.length > 2)
+                                sendPrivateMessage (sarr[1], sarr[2], null);
+                        }
+                        else broadcastMessage (msg, null);
+                    }
+                }
+                else
+                {
+                    Thread.sleep(SLEEP_INTERVAL);
+                //Раз в 5 сек. проверяем, не работает ли наш поток впустую.
+                    timer ++;
+                    if (timer > 5000 / SLEEP_INTERVAL)
+                    {
+                        if (!threadMain.isAlive())
+                            break;
+                    }
+                }
+            }//while
+        }
+        catch (InterruptedException intex) {intex.printStackTrace();}
+        catch (IOException ioex) {ioex.printStackTrace();}
+        finally
+        {
+            serverGettingDown();
+        }
+        System.out.println ("(Поток Server.threadConsoleToClient закрылся.)");
+    }// runThreadConsoleToClient ()     //*/
+
+
+//(Вспомогательная.) Проверем является ли вызывающий поток нашим потоком.
+//    private void securityCheckThread ()
+//    {
+//        Thread threadThis = Thread.currentThread();
+//        if (threadThis != threadMain &&
+//            threadThis != threadConsoleToClient)
+//            throw new SecurityException ("securityCheckThread() вызван из постороннего потока!");
+//    }// securityCheckThread ()
 
 
 }// class Server

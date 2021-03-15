@@ -8,23 +8,21 @@ import java.security.InvalidParameterException;
 
 import static ru.geekbrains.march.chat.server.Hw7Server.VALIDATE_AND_ADD;
 import static ru.geekbrains.march.chat.server.Hw7ServerApp.*;
-import static ru.geekbrains.march.chat.server.Hw7ServerApp.msgEXIT;
+import static ru.geekbrains.march.chat.server.Hw7ServerApp.CMD_EXIT;
 
 public class Hw7ClientHandler
 {
-    public static final boolean BROADCAST_MSG = true, PRIVATE_MSG = !BROADCAST_MSG;
-    private String clientName = null; //< После регистрации пользователя clientName == Controller.userName.
-
+    private String clientName; //< После регистрации пользователя clientName == Controller.userName.
     private int msgCounter = 0;
-
-    private Socket socket = null;
-    private Hw7Server server = null;
-    private DataInputStream dis = null;
-    private DataOutputStream dos = null;
-    private Thread threadClientToServer = null,
-                   threadCloser = null,
-                   threadMain = null;
     private boolean connectionGettingClosed = false;
+
+    private Socket socket;
+    private Hw7Server server;
+    private DataInputStream dis;
+    private DataOutputStream dos;
+    private Thread threadClientToServer,
+                   threadCloser,
+                   threadMain;
 
 
     public Hw7ClientHandler (Hw7Server serv, Socket sock)
@@ -67,43 +65,43 @@ public class Hw7ClientHandler
                     msg = dis.readUTF().trim();
 
                     if (!msg.isEmpty())
-                    if (msg.equalsIgnoreCase (msgEXIT)) //< Приложение клиента прислало запрос «/exit».
+                    if (msg.equalsIgnoreCase(CMD_EXIT)) //< Приложение клиента прислало запрос «/exit».
                     {
                         connectionGettingClosed = true;
                     }
-                    else if (msg.equalsIgnoreCase (msgONLINE))
+                    else if (msg.equalsIgnoreCase(CMD_ONLINE))
                     {
                         ; // (нет необходимости реагировать на это сообщение)
                     }
                     else if (server != null) //< если сервер ещё не упал
                     {
-                        if (msg.startsWith (loginPREFIX))
+                        if (msg.startsWith(LOGIN_PREFIX))
                         {
-                            clientName = msg.substring (loginPREFIX.length());
+                            clientName = msg.substring(LOGIN_PREFIX.length());
 
                             if (server.validateUser (this, VALIDATE_AND_ADD))
                             {
-                                dos.writeUTF (loginPREFIX + clientName);
+                                dos.writeUTF(LOGIN_PREFIX + clientName);
                                 server.broadcastMessage ("(вошёл в чат)", this);
                             }
-                            else dos.writeUTF (msgLOGIN); //< Серверу не понравилось введённое пользователем имя.
+                            else dos.writeUTF(CMD_LOGIN); //< Серверу не понравилось введённое пользователем имя.
                         }
                         else if (clientName != null) //< сообщения только для зарегистрированного клиента
                         {
-                            if (msg.equalsIgnoreCase (msgSTAT)) //< Приложение клиента прислало запрос «/stat».
+                            if (msg.equalsIgnoreCase(CMD_STAT)) //< Приложение клиента прислало запрос «/stat».
                             {
                                 sendMessageToClient("counter = " + msgCounter);
                             }
-                            else if (msg.equalsIgnoreCase (msgWHOAMI))
+                            else if (msg.equalsIgnoreCase(CMD_WHOAMI))
                             {
                                 sendMessageToClient ("Вы вошли в чат как: " + clientName);
                             }
                             else //сообщения, которые нужно считать:
                             {
                                 boolean boolOk = false;
-                                if (msg.startsWith (privatePREFIX)) //< Клиент отправил личное сообщение клиенту.
+                                if (msg.startsWith(PRIVATE_PREFIX)) //< Клиент отправил личное сообщение клиенту.
                                 {
-                                    boolOk = server.sendPrivateMessage (msg.substring (privatePREFIX.length()), this);
+                                    boolOk = server.sendPrivateMessage(msg.substring(PRIVATE_PREFIX.length()), this);
                                 }
                                 else //< Клиент отправил публичное сообщение в чат.
                                 {
@@ -127,7 +125,7 @@ public class Hw7ClientHandler
                     {
                         if (!threadMain.isAlive())
                             break;
-                        dos.writeUTF (msgONLINE); //< «пингуем» клиента на случай, если он отключился без предупреждения
+                        dos.writeUTF(CMD_ONLINE); //< «пингуем» клиента на случай, если он отключился без предупреждения
                         timer = 0;
                     }
                 }
@@ -209,7 +207,7 @@ public class Hw7ClientHandler
         try
         {
             dos.writeUTF ("Сервер прекратил работу.");
-            dos.writeUTF(msgEXIT);
+            dos.writeUTF(CMD_EXIT);
         }
         catch(IOException e){ e.printStackTrace(); }
 

@@ -9,8 +9,8 @@ import java.util.Scanner;
 
 public class HWChatServer
 {
-    public static final String msgEXIT = "/exit",
-                               msgSTAT = "/stat";
+    public static final String CMD_EXIT = "/exit",
+                               CMD_STAT = "/stat";
 
     public static final int PORT_NUMBER = 18189;
     private static boolean appGettingOff = false; //< флаг завершения приложения
@@ -51,12 +51,12 @@ public class HWChatServer
                 {
                     switch (s = dis.readUTF())
                     {
-                        case msgEXIT:    appGettingOff = true;
+                        case CMD_EXIT:    appGettingOff = true;
                             //клиент и сервер обмениваются сообщениями /exit (возможно, не один раз)
                             //dos.writeUTF(msgEXIT); //< это решает проблему с исключением в потоке клиента,
                             // читающего наши сообщения
                             break;
-                        case msgSTAT:    dos.writeUTF(String.format ("Количество сообщений - %d", msgCounter));
+                        case CMD_STAT:    dos.writeUTF(String.format("Количество сообщений - %d", msgCounter));
                             break;
                         default:     msgCounter ++;
                             System.out.println(s);
@@ -95,7 +95,7 @@ public class HWChatServer
                     {
                         dos.writeUTF (s);
 
-                        if (s.equalsIgnoreCase (msgEXIT))
+                        if (s.equalsIgnoreCase(CMD_EXIT))
                             appGettingOff = true;
                     }
                 }

@@ -20,8 +20,7 @@
 
 		<Text fx:id="txtIntroduction"/>
 
-		<TextField
-			fx:id="txtfieldUsernameField"
+		<TextField fx:id="txtfieldUsernameField"
 			HBox.hgrow="ALWAYS"
 			onAction="#onactionLogin"
 			promptText="Введите логин здесь.">
@@ -32,13 +31,15 @@
 
 		</TextField>
 
-		<Button fx:id="buttonLogin" onAction="#onactionLogin" text="Войти"/>
+		<Button fx:id="buttonLogin"
+				onAction="#onactionLogin"
+				text="Войти"/>
 	</HBox>
 
-	<TextArea
-			fx:id="txtareaMessages"
+	<TextArea fx:id="txtareaMessages"
 			VBox.vgrow="ALWAYS"
-			editable="false">
+			editable="false"
+			wrapText="true">
 
 		<VBox.margin>
 			<Insets top="5" bottom="3" right="3" left="5"/>
@@ -46,7 +47,9 @@
 
 	</TextArea>
 
-	<HBox visible="false" managed="false" fx:id="hboxMessagePanel">
+	<HBox fx:id="hboxMessagePanel"
+		visible="false"
+		managed="false">
 
 		<VBox.margin>
 			<Insets top="2" bottom="5" right="5" left="5"/>
@@ -55,8 +58,7 @@
 	visible="false" прячет элемент, но оставляет под него место. Если требуется скрыть и
 	его место (расширить на это место соседний элемент), то требуется указать:	managed="false".
 	-->
-		<TextField
-			fx:id="txtfieldMessage"
+		<TextField fx:id="txtfieldMessage"
 			onAction="#onactionSendMessage"
 			HBox.hgrow="ALWAYS"
 			promptText="Введите сообщение:">

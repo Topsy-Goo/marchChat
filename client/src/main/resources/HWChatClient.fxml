@@ -10,7 +10,10 @@
 		fx:controller="ru.geekbrains.march.chat.client.HWChatClient"
 		alignment="center">
 
-	<TextArea fx:id="txtareaMessages" VBox.vgrow="ALWAYS" editable="false"/>
+	<TextArea fx:id="txtareaMessages"
+			VBox.vgrow="ALWAYS"
+			editable="false"
+			wrapText="true"/>
 
 	<HBox>
 		<TextField	fx:id="txtfieldMessage"
