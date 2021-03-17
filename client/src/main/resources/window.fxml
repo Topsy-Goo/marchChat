@@ -9,26 +9,25 @@
 <?import javafx.scene.control.TextField?>
 <?import javafx.scene.control.TextArea?>
 <?import javafx.scene.text.Text?>
+
+<?import javafx.scene.control.ListView?>
+<?import javafx.scene.control.ToggleButton?>
 <VBox fx:controller="ru.geekbrains.march.chat.client.Controller"
 	  xmlns:fx="http://javafx.com/fxml"
 	  alignment="center">
 
-	<HBox alignment="BASELINE_CENTER">
-		<VBox.margin>
-			<Insets top="5" bottom="2" right="5" left="5"/>
-		</VBox.margin>
+	<!-- Элементы управление для входа в чат и выход из чата находятся в этом поясе.  -->
+	<HBox alignment="BASELINE_LEFT">
+
+		<VBox.margin><Insets top="5" bottom="2" right="5" left="5"/></VBox.margin>
 
 		<Text fx:id="txtIntroduction"/>
 
 		<TextField fx:id="txtfieldUsernameField"
-			HBox.hgrow="ALWAYS"
+			HBox.hgrow="NEVER"
 			onAction="#onactionLogin"
 			promptText="Введите логин здесь.">
-
-			<HBox.margin>
-				<Insets right="5" left="5"/>
-			</HBox.margin>
-
+			<HBox.margin><Insets right="5" left="5"/></HBox.margin>
 		</TextField>
 
 		<Button fx:id="buttonLogin"
@@ -36,39 +35,92 @@
 				text="Войти"/>
 	</HBox>
 
-	<TextArea fx:id="txtareaMessages"
-			VBox.vgrow="ALWAYS"
-			editable="false"
-			wrapText="true">
+	<!-- ================= TextArea и ListView ноходятся в этом поясе. ============== -->
+	<HBox VBox.vgrow="ALWAYS">
 
-		<VBox.margin>
-			<Insets top="5" bottom="3" right="3" left="5"/>
-		</VBox.margin>
+		<VBox.margin><Insets top="5" bottom="3" right="3" left="5"/></VBox.margin>
 
-	</TextArea>
+		<VBox HBox.hgrow="ALWAYS">
 
-	<HBox fx:id="hboxMessagePanel"
-		visible="false"
-		managed="false">
+			<TextArea fx:id="txtareaMessages"
+				HBox.hgrow="ALWAYS"
+				VBox.vgrow="ALWAYS"
+				editable="false"
+				wrapText="true">
+			</TextArea>
 
-		<VBox.margin>
-			<Insets top="2" bottom="5" right="5" left="5"/>
-		</VBox.margin>
+		</VBox>
+
+		<VBox HBox.hgrow="NEVER" fx:id="vboxClientsList" alignment="BOTTOM_CENTER">
+
+			<HBox.margin><Insets left="3" right="2"/></HBox.margin>
+
+			<Text text="Участники чата:"/>
+
+			<ListView fx:id="listviewClients"
+				maxWidth="100"
+				minWidth="100"
+				prefWidth="100"
+				VBox.vgrow="ALWAYS">
+
+				<VBox.margin><Insets top="5" bottom="3"/></VBox.margin>
+			</ListView>
+
+			<ToggleButton text="Приватно"
+				fx:id="btnToolbarPrivate"
+				onAction="#onactionTogglePrivateMode"
+				maxWidth="100"
+				minWidth="100"
+				prefWidth="100"/>
+
+		</VBox>
+
+	</HBox>
+
+	<!-- ========================== Тулбар ноходится в этом поясе. ================== -->
+	<HBox fx:id="hboxToolbar"
+		HBox.hgrow="ALWAYS">
+
+		<VBox.margin><Insets top="2" bottom="2" right="5" left="5"/></VBox.margin>
+
+		<ToggleButton text="Подсказки"
+			fx:id="btnToolbarTips"
+			onAction="#onactionTips"
+			HBox.hgrow="NEVER"
+			selected="true"/>
+
+		<Button text="Статистика"
+			onAction="#onactionStat"
+			HBox.hgrow="NEVER"/>
+
+		<Button text="Кто я"
+			onAction="#onactionWhoAmI"/>
+
+		<ToggleButton text="Сменить ник"
+			fx:id="btnToolbarChangeNickname"
+			onAction="#onactionChangeNickname"/>
+
+		<Button text="Отправить"
+			onAction="#onactionSendMessage"
+			HBox.hgrow="ALWAYS"/>
+	</HBox>
+
+	<!-- ===== Элементы управление для ввода сообщений ноходятся в этом поясе. ====== -->
+	<HBox fx:id="hboxMessagePanel">
+
+		<VBox.margin><Insets top="2" bottom="5" right="5" left="5"/></VBox.margin>
 	<!--
 	visible="false" прячет элемент, но оставляет под него место. Если требуется скрыть и
 	его место (расширить на это место соседний элемент), то требуется указать:	managed="false".
 	-->
 		<TextField fx:id="txtfieldMessage"
-			onAction="#onactionSendMessage"
 			HBox.hgrow="ALWAYS"
+			onAction="#onactionSendMessage"
 			promptText="Введите сообщение:">
 
-			<HBox.margin>
-				<Insets right="5" left="5"/>
-			</HBox.margin>
-		</TextField>
+<!--			<HBox.margin><Insets right="5" left="5"/></HBox.margin>-->
 
-		<Button text="Отправить" onAction="#onactionSendMessage"/>
+		</TextField>
 	</HBox>
 
 </VBox>

@@ -31,7 +31,7 @@ public class Hw7Controller implements Initializable
     private DataOutputStream dos;
     private String userName;
     private Thread threadIntputStream,
-                   threadMain;
+                   threadParent;
     private boolean appGettingOff = false,
                     loginState = LOGED_OFF;
 
@@ -44,7 +44,7 @@ public class Hw7Controller implements Initializable
 
     @Override public void initialize (URL location, ResourceBundle resources)
     {
-        threadMain = Thread.currentThread();
+        threadParent = Thread.currentThread();
         txtIntroduction.setText (txtIntroduceYourself);
         //txtareaMessages.setWrapText (true);
     }// initialize ()
@@ -139,7 +139,7 @@ public class Hw7Controller implements Initializable
                     timer ++;
                     if (timer > 5000 / SLEEP_INTERVAL)
                     {
-                        if (!threadMain.isAlive())
+                        if (!threadParent.isAlive())
                             break;
                         dos.writeUTF(CMD_ONLINE); //< «пингуем» сервер на случай, если он отключился без предупреждения
                         timer = 0;
