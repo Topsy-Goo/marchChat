@@ -1,0 +1,4 @@
+/client/target/
+/server/target/classes/ru/geekbrains/march/chat/server/Hw8ClientHandler.class
+/server/target/classes/ru/geekbrains/march/chat/server/Hw8Server.class
+/server/target/classes/ru/geekbrains/march/chat/server/Hw8ServerApp.class
