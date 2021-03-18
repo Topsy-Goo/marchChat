@@ -70,7 +70,7 @@ public class Hw8ClientHandler
             while (!connectionGettingClosed)
             if (dis.available() > 0)
             {
-                msg = dis.readUTF().trim();
+                msg = dis.readUTF();
                 break;
             }
             else //Такой же блок есть в Hw8Controller.readInputStreamUTF(). Там я описал причину,
@@ -107,7 +107,7 @@ public class Hw8ClientHandler
     // Я считаю, что 2 цикла while здесь не подходят, т.к. у Hw8ClientHandler'а есть (или могут появиться)
     // команды, которые он должен обрабатывать независимо от состояния регистрации клиента.
 
-            msg = msg.toLowerCase().trim();
+            msg = msg.trim().toLowerCase();
 
             if (msg.isEmpty() || msg.equals(CMD_ONLINE))
                 continue;
@@ -243,12 +243,14 @@ public class Hw8ClientHandler
         connectionGettingClosed = true;
         if (server != null)
         {
-            server.syncRemoveClient (this, REMOVE_AND_UPDATE);
+            server.syncRemoveClient(this, MODE_UPDATE);
             server.syncBroadcastMessage (LEFT_CHAT, this);
             server = null;
         }
         try
-        {   syncSendMessageToClient (CMD_EXIT);
+        {   //syncSendMessageToClient (CMD_EXIT); < не нужно это здесь вызывать, т.к. мы сейчас вызываем close() в
+            //      двух случаях: по приходе от клиента команды CMD_EXIT, и в onServerDown(). onServerDown() сам
+            //      сам шлёт клиенту сообщение CMD_EXIT. Вроде, этого достаточно.
 
             if (threadClientToServer != null)   threadClientToServer.join(1000);
             if (socket != null && !socket.isClosed())   socket.close();

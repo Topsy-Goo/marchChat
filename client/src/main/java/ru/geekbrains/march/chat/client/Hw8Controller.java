@@ -53,7 +53,7 @@ public class Hw8Controller implements Initializable
 
     private final int INPUT_THREAD_SLEEPINTERVAL = 250;
 
-    private Socket socket;
+    private Socket clientSideSocket;
     private DataInputStream dis;
     private DataOutputStream dos;
     private String userName;
@@ -122,12 +122,12 @@ public class Hw8Controller implements Initializable
     {
         appGettingOff = false;
 
-        if (socket == null || socket.isClosed())
+        if (clientSideSocket == null || clientSideSocket.isClosed())
         try
         {
-            socket = new Socket (SERVER_ADDRESS, SERVER_PORT);
-            dis = new DataInputStream (socket.getInputStream());
-            dos = new DataOutputStream (socket.getOutputStream());
+            clientSideSocket = new Socket (SERVER_ADDRESS, SERVER_PORT);
+            dis = new DataInputStream (clientSideSocket.getInputStream());
+            dos = new DataOutputStream (clientSideSocket.getOutputStream());
 
             threadIntputStream = new Thread(() -> runTreadInputStream());
             threadIntputStream.start();
@@ -147,12 +147,12 @@ public class Hw8Controller implements Initializable
         updateUserInterface (CANNOT_CHAT);
         txtareaMessages.appendText (PROMPT_YOU_ARE_LOGED_OFF);
 
-        if (socket != null && !socket.isClosed())
+        if (clientSideSocket != null && !clientSideSocket.isClosed())
             try{
-                socket.close();
+                clientSideSocket.close();
             }catch(IOException e) {e.printStackTrace();}
 
-        socket = null;
+        clientSideSocket = null;
         dis = null;
         dos = null;
         threadIntputStream = null;
@@ -213,6 +213,8 @@ public class Hw8Controller implements Initializable
 
     // Введённое имя отправляется на сервер и проверяется сервером на уникальность. Если сервер
     // счёл имя подходящим, то ClientHandler возвращает Controller'у имя.
+
+            msg = msg.trim().toLowerCase();
 
             if (msg.isEmpty() || msg.equalsIgnoreCase (CMD_ONLINE))
                 continue;

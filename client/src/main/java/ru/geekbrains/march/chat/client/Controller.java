@@ -53,7 +53,7 @@ public class Controller implements Initializable
 
     private final int INPUT_THREAD_SLEEPINTERVAL = 250;
 
-    private Socket socket;
+    private Socket clientSideSocket;
     private DataInputStream dis;
     private DataOutputStream dos;
     private String userName;
@@ -123,12 +123,12 @@ public class Controller implements Initializable
         appGettingOff = false;
 
     // создаём сокет для подключения к серверу по порт 8189 (сервер должен уже ждать нас на этом порте)
-        if (socket == null || socket.isClosed())
+        if (clientSideSocket == null || clientSideSocket.isClosed())
         try
         {
-            socket = new Socket (SERVER_ADDRESS, SERVER_PORT);
-            dis = new DataInputStream (socket.getInputStream());
-            dos = new DataOutputStream (socket.getOutputStream());
+            clientSideSocket = new Socket (SERVER_ADDRESS, SERVER_PORT);
+            dis = new DataInputStream (clientSideSocket.getInputStream());
+            dos = new DataOutputStream (clientSideSocket.getOutputStream());
 
             threadIntputStream = new Thread(() -> runTreadInputStream());
             threadIntputStream.start();
@@ -148,12 +148,12 @@ public class Controller implements Initializable
         updateUserInterface(CANNOT_CHAT);
         txtareaMessages.appendText(PROMPT_YOU_ARE_LOGED_OFF);
 
-        if (socket != null && !socket.isClosed())
+        if (clientSideSocket != null && !clientSideSocket.isClosed())
             try{
-                socket.close();
+                clientSideSocket.close();
             }catch(IOException e) {e.printStackTrace();}
 
-        socket = null;
+        clientSideSocket = null;
         dis = null;
         dos = null;
         threadIntputStream = null;
@@ -198,10 +198,6 @@ public class Controller implements Initializable
             e.printStackTrace();
         }
         catch (InterruptedException e) {e.printStackTrace();}
-        finally
-        {
-//System.out.print ("\nreadInputStreamUTF() / вызываем disconnect()");
-        }
         return msg;
     }// readInputStreamUTF ()
 
@@ -218,6 +214,8 @@ public class Controller implements Initializable
     // на уникальность. Если сервер счёл имя подходящим, то ClientHandler возвращает клиентскому
     // приложению имя в том же формате — «/login userName». Если сервер счёл имя неподходящим, то
     // клиентскому приложению возвращается только запрос /login.
+
+            msg = msg.trim().toLowerCase();
 
             if (msg.isEmpty() || msg.equalsIgnoreCase (CMD_ONLINE))
                 continue;

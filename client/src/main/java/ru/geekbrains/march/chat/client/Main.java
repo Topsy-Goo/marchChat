@@ -14,20 +14,18 @@ public class Main extends Application
     {
         Parent root = FXMLLoader.load(getClass().getResource ("/window.fxml"));
         primaryStage.setTitle ("March chat");
-        Scene scene = new Scene (root, 400, 300);
+        Scene scene = new Scene (root, 350, 250);
         primaryStage.setScene (scene);
         primaryStage.show();
         primaryStage.setMinWidth(350);
-        primaryStage.setMinHeight(300);
-
-        //System.out.print ("\n" + scene.getWindow().getEventDispatcher().toString());
-
+        primaryStage.setMinHeight(250);
     }// start ()
 
 
     public static void main (String[] args)
     {
         launch (args);
+
     }// main ()
 
 

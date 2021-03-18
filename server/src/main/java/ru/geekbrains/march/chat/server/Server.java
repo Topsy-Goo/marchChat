@@ -20,16 +20,15 @@ public class Server
     public static final int PORT_MAX = 65535;
     public static final int PORT_MIN = 0;
     public static final boolean
-                VALIDATE_AND_ADD = true,
-                VALIDATE_AND_RENAME = !VALIDATE_AND_ADD,
-                REMOVE_AND_UPDATE = true, REMOVE_SILENT = !REMOVE_AND_UPDATE;
-    private final String serverName;
+                VALIDATE_AND_ADD = true, VALIDATE_AND_RENAME = !VALIDATE_AND_ADD,
+                MODE_UPDATE = true, MODE_SILENT = !MODE_UPDATE;
+    private final String SERVERNAME;
 
     private final int CONSOLE_THREAD_SLEEPINTERVAL = 250;
 
     private int port = 0;
-    //private final List<ClientHandler> clients;
     private final Map<String, ClientHandler> map;
+    private String[] publicCliendsList;
     private Thread threadConsoleToClient;
     private final Thread threadMain;
     private boolean serverGettingOff = false;
@@ -40,10 +39,10 @@ public class Server
         if (port < PORT_MIN || port > PORT_MAX)    throw new IllegalArgumentException();
 
         map = new HashMap<>();
+        syncPublicUpdateClientsList();
         this.port = port;
-        //clients = new LinkedList<>();
         threadMain = Thread.currentThread();
-        serverName = SERVERNAME_BASE_ + serverNameCounter ++;
+        SERVERNAME = SERVERNAME_BASE_ + serverNameCounter ++;
 
     // создали сокет на порте 8189 (нужно использовать любой свободный порт). Если порт занят,
     // то получим исключение, но, скорее всего, порт 8189 будет свободен.
@@ -58,11 +57,11 @@ public class Server
                 System.out.print (WAITING_FOR_CLIENTS);
     // ожидаем подключений (бесконечно, если подключений так и не будет). Если подключение придёт, то в
     // socket окажется подключение к клиенту (клиент должен знать, что мы его ждём на порте 8189).
-                Socket socket = servsocket.accept();
+                Socket serverSideSocket = servsocket.accept();
                 if (!serverGettingOff)
-                    new ClientHandler (this, socket);
+                    new ClientHandler (this, serverSideSocket);
                 else
-                    socket.close();
+                    serverSideSocket.close();
 
     // цикл чтения байтов из входного потока (закоментируем этот фрагмент, чтобы он не мешал воспользоваться
     // некоторыми усовершенствованиями, которые находястя в следующем за ним фрагменте)
@@ -133,7 +132,7 @@ public class Server
                 if (msg.equalsIgnoreCase(CMD_EXIT)) //< Сервер можно закрыть руками.
                 {
                     serverGettingOff = true; //< так мы закрываем наш поток -- threadConsoleToClient
-                    new Socket (SERVER_ADDRESS, SERVER_PORT); //< а так освобождаем основной поток от чар метода accept().
+                    new Socket (SERVER_ADDRESS, SERVER_PORT).close(); //< а так освобождаем основной поток от чар метода accept().
                 }
                 else if (msg.equalsIgnoreCase(CMD_PRIVATE_MSG))
                 {
@@ -154,7 +153,6 @@ public class Server
             else
             {
                 Thread.sleep(CONSOLE_THREAD_SLEEPINTERVAL);
-            //Раз в 5 сек. проверяем, не работает ли наш поток впустую.
                 timer ++;
                 if (timer > 5000 / CONSOLE_THREAD_SLEEPINTERVAL)
                 {
@@ -164,8 +162,7 @@ public class Server
                 }
             }
         }
-        catch (InterruptedException intex) {intex.printStackTrace();} //для sleep()
-        catch (IOException ioex) {ioex.printStackTrace();}  //для available()
+        catch (InterruptedException | IOException ex) {ex.printStackTrace();} //для sleep() | для available()
         finally
         {
             serverGettingDown();
@@ -182,13 +179,14 @@ public class Server
             map != null && !map.containsKey(newname))
         {
             if (add == VALIDATE_AND_RENAME)
-                syncRemoveClient (client, REMOVE_SILENT);
+                syncRemoveClient (client, MODE_SILENT);
                 // (Здесь мы вносим изменения в список клиентов, а завершат переименование
                 // клиента ClientHandler и Controller.)
 
             map.put (newname, client);
             boolOk = true;
-            onClientsListChanged();
+            syncPublicUpdateClientsList();
+            syncBroadcastMessage (CMD_CLIENTS_LIST_CHANGED, null);
         }
         return boolOk;
     }// syncValidateUser ()
@@ -197,42 +195,44 @@ public class Server
 //Удаляем клиента из списка подключенных клиентов.
     public synchronized void syncRemoveClient (ClientHandler client, boolean mode)
     {
-        if (client != null)
-            if (map.remove(client.getClientName()) != null)
-                if (mode == REMOVE_AND_UPDATE)
-                    onClientsListChanged();
+        if (client != null  &&  map.remove(client.getClientName()) != null)
+        {
+            syncPublicUpdateClientsList();
+            if (mode == MODE_UPDATE)
+                syncBroadcastMessage (CMD_CLIENTS_LIST_CHANGED, null);
+        }
     }// syncRemoveClient ()
 
 
-//В списке клиентов произошли изменения (добавление, удаление, переименование).
-    public void onClientsListChanged ()
+//В списке клиентов произошли изменения (добавление, удаление, переименование; также вызывается из конструктора).
+// Составляем список имён участников чата для рассылки этим самым участникам.
+    private synchronized void syncPublicUpdateClientsList ()
     {
-        syncBroadcastMessage (CMD_CLIENTS_LIST_CHANGED, null);
-    }// onClientsListChanged ()
+        if (map != null)
+        {
+            publicCliendsList = map.keySet().toArray(new String[0]);
+        }
+    }// syncPublicUpdateClientsList ()
 
 
 //Рассылаем указанное сообщение всем клиентам из нашего списка подключенных клиентов.
     public synchronized boolean syncBroadcastMessage (String msg, ClientHandler from)
     {
-        boolean boolSent = false;
+        boolean boolSent = msg != null  &&  map != null  &&  !(msg = msg.trim()).isEmpty();
 
-        if (msg != null && !msg.isEmpty() && map != null)
+        if (boolSent)
+        for (Map.Entry<String, ClientHandler> entry : map.entrySet())
         {
-            for (Map.Entry<String, ClientHandler> entry : map.entrySet())
-            {
-                ClientHandler client = entry.getValue();
+            ClientHandler client = entry.getValue();
 
-            //for (ClientHandler client : clients)
-            //{
-                if (msg.equalsIgnoreCase (CMD_CLIENTS_LIST_CHANGED))
-                {
-                    boolSent = client.syncSendMessageToClient (CMD_CLIENTS_LIST_CHANGED);
-                }
-                else
-                {
-                    String name = (from != null) ? from.getClientName() : serverName; //< сообщение исходит от сервера (введено в консоли)
-                    boolSent = client.syncSendMessageToClient(CMD_CHAT_MSG, name + ":\n\t" + msg);
-                }
+            if (msg.equalsIgnoreCase (CMD_CLIENTS_LIST_CHANGED))
+            {
+                boolSent = client.syncSendMessageToClient (CMD_CLIENTS_LIST_CHANGED);
+            }
+            else
+            {
+                String name = (from != null) ? from.getClientName() : SERVERNAME; //< сообщение исходит от сервера (введено в консоли)
+                boolSent = client.syncSendMessageToClient(CMD_CHAT_MSG, name + ":\n\t" + msg);
             }
         }
         return boolSent;
@@ -248,7 +248,7 @@ public class Server
             nameTo  != null && !nameTo.isEmpty()  &&
             map != null)
         {
-            String nameFrom = (clientFrom != null) ? clientFrom.getClientName() : serverName;
+            String nameFrom = (clientFrom != null) ? clientFrom.getClientName() : SERVERNAME;
 
             for (Map.Entry<String, ClientHandler> entry : map.entrySet())
             {
@@ -278,23 +278,8 @@ public class Server
     }// syncSendPrivateMessage ()
 
 
-//Составляем список имён участников чата.
-    public synchronized String[] getClientsList ()
-    {
-        String[] namelist = null;
-        if (map != null)
-        {
-            namelist = map.keySet().toArray (new String[0]);
+//Предоставляем публичный список участников чата всем желающим.
+    public String[] getClientsList ()    {   return publicCliendsList;   }// getClientsList ()
 
-            //int size = map.size();
-            //namelist = new String[size];
-            //for (int i=0;  i<size;  i++)
-            //{
-            //    ClientHandler cl = clients.get(i);
-            //    namelist[i] = cl.getClientName();
-            //}
-        }
-        return namelist;
-    }// getClientsList ()
 
 }// class Server
