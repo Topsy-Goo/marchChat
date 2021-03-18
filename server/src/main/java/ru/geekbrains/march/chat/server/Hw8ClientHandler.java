@@ -7,8 +7,9 @@ import java.net.Socket;
 
 import static ru.geekbrains.march.chat.server.Server.*;
 import static ru.geekbrains.march.chat.server.ServerApp.*;
+import static ru.geekbrains.march.chat.server.ServerApp.CMD_EXIT;
 
-public class ClientHandler
+public class Hw8ClientHandler
 {
     private String clientName; //< После регистрации пользователя clientName == Controller.userName.
     private final int C2S_THREAD_SLEEPINTERVAL = 100,
@@ -17,7 +18,7 @@ public class ClientHandler
     private boolean connectionGettingClosed = false;
 
     private Socket socket;
-    private Server server;
+    private Hw8Server server;
     private DataInputStream dis;
     private DataOutputStream dos;
     private Thread threadClientToServer,
@@ -34,13 +35,13 @@ public class ClientHandler
             SERVER_OFF = "Сервер прекратил работу."
             ;
 
-    public ClientHandler (Server serv, Socket serverSideSocket)
+    public Hw8ClientHandler (Hw8Server serv, Socket sock)
     {
-        if (serverSideSocket == null || serv == null)
+        if (sock == null || serv == null)
             throw new IllegalArgumentException();
 
         this.server = serv;
-        this.socket = serverSideSocket;
+        this.socket = sock;
         this.threadMain = Thread.currentThread();
         try
         {
@@ -57,7 +58,7 @@ public class ClientHandler
             ioe.printStackTrace();
         }
         System.out.print (CLIENT_CREATED);
-    }//ClientHandler (Socket)
+    }// Hw8ClientHandler (Socket)
 
 
     private String readInputStreamUTF ()
@@ -72,17 +73,16 @@ public class ClientHandler
                 msg = dis.readUTF();
                 break;
             }
-            else //Такой же блок есть в Controller.readInputStreamUTF(). Там я описал причину,
-            {    // по которой оставил этот блок без изменений.
+            else //Такой же блок есть в Hw8Controller.readInputStreamUTF(). Там я описал причину,
+            {    // по которой оставил его без изменений.
                 Thread.sleep(C2S_THREAD_SLEEPINTERVAL);
 
-            //Раз в 5 сек. проверяем, не работает ли наш поток впустую.
                 sleeptimer ++;
                 if (sleeptimer > 5000 / C2S_THREAD_SLEEPINTERVAL)
                 {
-                    if (!threadMain.isAlive())  //< проверяем родительский поток
+                    if (!threadMain.isAlive())
                         break;
-                    syncSendMessageToClient (CMD_ONLINE);   //< «пингуем» клиента
+                    syncSendMessageToClient (CMD_ONLINE);
                     sleeptimer = 0;
                 }
             }
@@ -92,7 +92,7 @@ public class ClientHandler
         {
             connectionGettingClosed = true;
             msg = null;
-            System.out.print("\nClientHandler.readInputStreamUTF() : ошибка соединения.");
+            System.out.print("\nHw8ClientHandler.readInputStreamUTF() : ошибка соединения.");
             e.printStackTrace();
         }
         return msg;
@@ -104,7 +104,7 @@ public class ClientHandler
         String msg;
         while (!connectionGettingClosed && (msg = readInputStreamUTF()) != null)
         {
-    // Я считаю, что 2 цикла while здесь не подходят, т.к. у ClientHandler'а есть (или могут появиться)
+    // Я считаю, что 2 цикла while здесь не подходят, т.к. у Hw8ClientHandler'а есть (или могут появиться)
     // команды, которые он должен обрабатывать независимо от состояния регистрации клиента.
 
             msg = msg.trim().toLowerCase();
@@ -112,24 +112,21 @@ public class ClientHandler
             if (msg.isEmpty() || msg.equals(CMD_ONLINE))
                 continue;
 
-            if (msg.equals (CMD_EXIT)) //< Приложение клиента закрывается.
+            if (msg.equals  (CMD_EXIT)) //< Приложение клиента закрывается.
             {
                 connectionGettingClosed = true;
             }
-            else
-            if (msg.equals (CMD_STAT)) // Клиент запросил статистику
+            else if (msg.equals (CMD_STAT)) // Клиент запросил статистику
             {
                 syncSendMessageToClient (CMD_STAT, String.valueOf (msgCounter));
             }
-            else
-            if (server != null) //< если сервер ещё не упал
+            else if (server != null) //< если сервер ещё не упал
             {
                 if (msg.equals (CMD_CLIENTS_LIST)) //< клиент запросил список участников чата
                 {
-                    clientsListUpdate ();
+                    sendClientsList();
                 }
-                else
-                if (msg.equals (CMD_LOGIN)) // Клиент запросил регистрацию в чате
+                else if (msg.equals (CMD_LOGIN)) // Клиент запросил регистрацию в чате
                 {
                     onCmdLogin();
                 }
@@ -141,7 +138,7 @@ public class ClientHandler
                         onCmdChangeNickname();
                     }
                     else
-                    if (msg.equals (CMD_WHOAMI)) // Клиент запросил соё имя
+                    if (msg.equals (CMD_WHOAMI)) // Клиент запросил своё имя
                     {
                         syncSendMessageToClient (CMD_WHOAMI, clientName);
                     }
@@ -169,11 +166,10 @@ public class ClientHandler
                 }
             }
         }//while
-        System.out.print ("\nClientHandler.runThreadClientToServer() - поток threadClientToServer закрылся.");
+        System.out.print ("\nHw8ClientHandler.runThreadClientToServer() - поток threadClientToServer закрылся.");
         threadClientToServer = null;
         close();
     }// runThreadClientToServer ()
-
 
 //Обработчик команды CMD_CHANGE_NICKNAME.
     private void onCmdChangeNickname ()
@@ -183,7 +179,6 @@ public class ClientHandler
         {
             server.syncBroadcastMessage (String.format (FORMAT_RENAMING_TO_, name), this);
             clientName = name;
-            //server.onClientsListChanged();
             syncSendMessageToClient (CMD_CHANGE_NICKNAME, clientName);
         }
         else syncSendMessageToClient (CMD_BADNICKNAME);
@@ -192,14 +187,15 @@ public class ClientHandler
 //Обработчик команды CMD_LOGIN.
     private void onCmdLogin ()
     {
-        if (clientName != null) throw new RuntimeException("ERROR @ runThreadClientToServer() : повторная регистрация?");
+        if (clientName != null)
+            throw new RuntimeException("ERROR @ runThreadClientToServer() : повторная регистрация?");
 
-        clientName = readInputStreamUTF(); //< Это немного преждевременно, но очень удобно --
+        clientName = readInputStreamUTF(); //< Это немного преждевременно, но удобно, т.к.
                                            // syncValidateUser() сможет вызвать onClientsListChanged().
         if (server.syncValidateUser (this, clientName, VALIDATE_AND_ADD))
         {
             syncSendMessageToClient (CMD_LOGIN, clientName);
-            clientsListUpdate ();
+            sendClientsList();
             server.syncBroadcastMessage (ENTER_CHAT, this);
         }
         else
@@ -208,13 +204,8 @@ public class ClientHandler
         }
     }// onCmdLogin ()
 
-//Обработчик команды .
-    private void onCmd ()
-    {
-    }// onCmd ()
-
 //Отсылаем клиенту новый список клиентов.
-    private void clientsListUpdate ()
+    private void sendClientsList ()
     {
         String[] clientslist = server.getClientsList();
         if (clientslist != null)
@@ -222,9 +213,8 @@ public class ClientHandler
             syncSendMessageToClient (CMD_CLIENTS_LIST);
             syncSendMessageToClient (String.valueOf (clientslist.length));
             syncSendMessageToClient (clientslist);
-            //syncSendMessageToClient (CMD_CLIENTS_LIST);
         }
-    }// clientsListUpdate ()
+    }// sendClientsList ()
 
 
 //(Вспомогательная.)
@@ -232,19 +222,16 @@ public class ClientHandler
     {
         boolean boolSent = false;
         if (lines != null  &&  lines.length > 0  &&  dos != null)
+        try
         {
-            try
-            {
-                for (String msg : lines)
-                    dos.writeUTF(msg);
-                boolSent = true;
-            }
-            catch (IOException e)
-            {
-                connectionGettingClosed = true;
-                System.out.print ("\nClientHandler.syncSendMessageToClient() : ошибка соединения.");
-                //e.printStackTrace();
-            }
+            for (String msg : lines)
+                dos.writeUTF(msg);
+            boolSent = true;
+        }
+        catch (IOException e)
+        {
+            connectionGettingClosed = true;
+            System.out.print ("\nHw8ClientHandler.syncSendMessageToClient() : ошибка соединения.");
         }
         return boolSent;
     }// syncSendMessageToClient ()
@@ -266,8 +253,8 @@ public class ClientHandler
             //      сам шлёт клиенту сообщение CMD_EXIT. Вроде, этого достаточно.
 
             if (threadClientToServer != null)   threadClientToServer.join(1000);
-        // (Оказывается, закрытие Socket'а приводит к закрытию созданных им InputStream и OutputStream.)
             if (socket != null && !socket.isClosed())   socket.close();
+            // (Закрытие Socket'а приводит к закрытию созданных им InputStream и OutputStream.)
         }
         catch (InterruptedException | IOException e) { e.printStackTrace(); }
         finally
@@ -276,7 +263,7 @@ public class ClientHandler
             socket = null;
             dos = null;
             dis = null;
-            System.out.printf("\n(ClientHandler.close() : Клиент %s закрылся.)\n", clientName);
+            System.out.printf("\n(Hw8ClientHandler.close() : Клиент %s закрылся.)\n", clientName);
             clientName = null;
         }
     }// close ()
@@ -284,7 +271,7 @@ public class ClientHandler
 //Метод вызывается сервером (предположительно).
     public void onServerDown ()
     {
-        syncSendMessageToClient (CMD_CHAT_MSG, SERVER_OFF);
+        syncSendMessageToClient(CMD_CHAT_MSG, SERVER_OFF);
         syncSendMessageToClient (CMD_EXIT);
         server = null; //< чтобы никто не пытался вызывать методы сервера
         close();
@@ -292,4 +279,4 @@ public class ClientHandler
 
     public String getClientName ()  {   return clientName;  }
 
-}// class ClientHandler
+}// class Hw8ClientHandler

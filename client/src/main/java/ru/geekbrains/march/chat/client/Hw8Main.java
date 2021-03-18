@@ -6,28 +6,26 @@ import javafx.scene.Parent;
 import javafx.scene.Scene;
 import javafx.stage.Stage;
 
-public class Main extends Application
+public class Hw8Main extends Application
 {
     Controller controller = null;
 
     @Override public void start (Stage primaryStage) throws Exception
     {
-        Parent root = FXMLLoader.load(getClass().getResource ("/window.fxml"));
+        Parent root = FXMLLoader.load(getClass().getResource("/hw8window.fxml"));
         primaryStage.setTitle ("March chat");
-        Scene scene = new Scene (root, 350, 250);
+        Scene scene = new Scene (root, 400, 300);
         primaryStage.setScene (scene);
         primaryStage.show();
         primaryStage.setMinWidth(350);
-        primaryStage.setMinHeight(250);
+        primaryStage.setMinHeight(300);
     }// start ()
 
 
     public static void main (String[] args)
     {
         launch (args);
-
     }// main ()
 
 
-}// class Main
-
+}// class Hw8Main

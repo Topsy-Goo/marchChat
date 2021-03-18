@@ -19,7 +19,7 @@ import java.util.ResourceBundle;
 
 import static ru.geekbrains.march.chat.server.ServerApp.*;
 
-public class Controller implements Initializable
+public class Hw8Controller implements Initializable
 {
     private final static String
             TXT_INTRODUCE_YOURSELF = "Представьтесь:",
@@ -29,7 +29,7 @@ public class Controller implements Initializable
             PROMPT_UNABLE_TO_CONNECT = "\nНе удалось подключиться.",
             PROMPT_YOU_ARE_LOGED_OFF = "\nВы вышли из чата.",
             PROMPT_CONNECTION_LOST = "\nСоединение разорвано.",
-            ALERT_BAN_NICKNAME_SPECIFIED = "\nУказанное имя пользователя некорректно или уже используется.",
+            ALERT_BAD_NICKNAME_SPECIFIED = "\nУказанное имя пользователя некорректно или уже используется.",
             ALERT_UNABLE_TO_SEND_MESSAGE = "Не удадось отправить сообщение.",
             PROMPT_PRIVATE_MODE_IS_ON = "\n\nВы вошли в приватный режим. Ваши сообщения будут видны только выбранному собеседнику.",
             PROMPT_PRIVATE_MODE_IS_OFF = "\n\nВы вышли из приватного режима. Ваши сообщения будут видны всем участникам чата.",
@@ -108,10 +108,10 @@ public class Controller implements Initializable
                 listviewClients.getItems().clear();
                 txtfieldUsernameField.requestFocus();
             }
-            hboxMessagePanel.setManaged (canChat == CAN_CHAT);
-            hboxMessagePanel.setVisible (canChat == CAN_CHAT);
             hboxToolbar.setManaged (canChat == CAN_CHAT);
             hboxToolbar.setVisible (canChat == CAN_CHAT);
+            hboxMessagePanel.setManaged (canChat == CAN_CHAT);
+            hboxMessagePanel.setVisible (canChat == CAN_CHAT);
             vboxClientsList.setVisible(canChat == CAN_CHAT);
             vboxClientsList.setManaged(canChat == CAN_CHAT);
         });
@@ -122,7 +122,6 @@ public class Controller implements Initializable
     {
         appGettingOff = false;
 
-    // создаём сокет для подключения к серверу по порт 8189 (сервер должен уже ждать нас на этом порте)
         if (clientSideSocket == null || clientSideSocket.isClosed())
         try
         {
@@ -145,8 +144,8 @@ public class Controller implements Initializable
 // интерфейс (чтобы юзер не мог пользоваться чатом).
     private void disconnect ()
     {
-        updateUserInterface(CANNOT_CHAT);
-        txtareaMessages.appendText(PROMPT_YOU_ARE_LOGED_OFF);
+        updateUserInterface (CANNOT_CHAT);
+        txtareaMessages.appendText (PROMPT_YOU_ARE_LOGED_OFF);
 
         if (clientSideSocket != null && !clientSideSocket.isClosed())
             try{
@@ -178,12 +177,9 @@ public class Controller implements Initializable
     // это настолько ненормальным, что я решил оставить нижеследующий блок как минимум до тех пор, пока
     // не обнаружу в Java аналог метода TerminateThread().
             {
-            //Использование dis.available() нуждается в притормаживании…
-                Thread.sleep(INPUT_THREAD_SLEEPINTERVAL);
+                Thread.sleep (INPUT_THREAD_SLEEPINTERVAL); //< притормаживаем available()
 
-            //…плюс это позволяет каждые 5 сек. проверять, не работает ли наш поток впустую:
-                timer ++;
-                if (timer > 5000 / INPUT_THREAD_SLEEPINTERVAL)
+                if (timer ++ > 5000 / INPUT_THREAD_SLEEPINTERVAL)
                 {
                     if (!threadParent.isAlive())    //< проверяем родительский поток
                         break;
@@ -198,6 +194,7 @@ public class Controller implements Initializable
             e.printStackTrace();
         }
         catch (InterruptedException e) {e.printStackTrace();}
+
         return msg;
     }// readInputStreamUTF ()
 
@@ -207,13 +204,15 @@ public class Controller implements Initializable
         String msg;
         while (!appGettingOff && (msg = readInputStreamUTF()) != null)
         {
+    // Клиент и сервер теперь общаются при помощи последовательностей сообщений, первым сообщением в
+    // которых всегда выступает команда.
+
     //  Чтобы войти в чат, пользователь должен ввести непустое уникальное (для чата) имя.
     // (Именно клиентское приложение начинает процесс регистрации. Если регистрация не состоялась,
     // то пользователь не может возможности пользоваться чатом.)
-    // Введённое имя отправляется на сервер в формате «/login userName» и проверяется сервером
-    // на уникальность. Если сервер счёл имя подходящим, то ClientHandler возвращает клиентскому
-    // приложению имя в том же формате — «/login userName». Если сервер счёл имя неподходящим, то
-    // клиентскому приложению возвращается только запрос /login.
+
+    // Введённое имя отправляется на сервер и проверяется сервером на уникальность. Если сервер
+    // счёл имя подходящим, то ClientHandler возвращает Controller'у имя.
 
             msg = msg.trim().toLowerCase();
 
@@ -233,14 +232,11 @@ public class Controller implements Initializable
                     loginState = LOGED_IN;
                     updateUserInterface (CAN_CHAT);
                     break;
-                case CMD_CHANGE_NICKNAME: //Сервер одобрил отправленное ему имя пользователя.
-                    userName = readInputStreamUTF();
-                    txtfieldUsernameField.setText (userName);
-                    onactionChangeNickname();
-                    syncSendMessageToServer (CMD_CLIENTS_LIST);
+                case CMD_CHANGE_NICKNAME: //< Сервер одобрил отправленное ему имя пользователя.
+                    onCmdChangeNickname();
                     break;
-                case CMD_BADNICKNAME:   //Это сообщение можем получить при регистрации и при смене имени.
-                    alertWarning(ALERT_BAN_NICKNAME_SPECIFIED);
+                case CMD_BADNICKNAME:   //< может приходить при регистрации и при смене имени.
+                    alertWarning (ALERT_BAD_NICKNAME_SPECIFIED);
                     break;
                 case CMD_EXIT:  onactionLogout (DONTSEND_EXIT);
                     break;
@@ -256,12 +252,21 @@ public class Controller implements Initializable
                 default:
                     throw new UnsupportedOperationException (
                             "ERROR @ runTreadInputStream() : незарегистрированное сообщение:\n\t" + msg);
-            }
+            }//switch
         }//while
         disconnect();
     }// runTreadInputStream ()
 
+// Обработчик команды CMD_CHANGE_NICKNAME.
+    private void onCmdChangeNickname ()
+    {
+        userName = readInputStreamUTF();
+        txtfieldUsernameField.setText (userName);
+        onactionChangeNickname();
+        syncSendMessageToServer (CMD_CLIENTS_LIST);
+    }// onCmdChangeNickname ()
 
+// Обработчик команды CMD_CLIENTS_LIST.
     private void onCmdClientsList ()
     {
         int size = Integer.parseInt (readInputStreamUTF());
@@ -287,13 +292,12 @@ public class Controller implements Initializable
                 String name = txtfieldUsernameField.getText().trim();
                 if (name.isEmpty())
                 {
-                    alertWarning("\nВведите другое имя пользователя.");
+                    alertWarning ("\nВведите другое имя пользователя.");
                     txtfieldUsernameField.requestFocus();
                 }
                 else
                 {   userName = name;
-                    connect();  //< На данном этапе развития чата удобно сперва запрашивать
-                                //  у пользователя его имя, а потом подключаться к серверу.
+                    connect();
                     syncSendMessageToServer(CMD_LOGIN, userName);
                 }
             }
@@ -305,18 +309,15 @@ public class Controller implements Initializable
 //Обрабатываем команду выхода из чата (по кнопке, по команде и по приходу сообщения от сервера).
     private void onactionLogout (boolean sendExitMessage)
     {
-    //Этот метод может быть вызван из runTreadInputStream() как реакция на приход сообщения /exit от сервера.
+        //Этот метод может быть вызван из runTreadInputStream() как реакция на приход сообщения /exit от сервера.
         if (sendExitMessage == SEND_EXIT)
             syncSendMessageToServer(CMD_EXIT);
 
         loginState = LOGED_OFF;
-    //при нормальном течении событий disconnect() вызовется из потока threadIntputStream в самом конце.
+    //при нормальном течении событий disconnect() вызовется из потока threadIntputStream в самом конце, …
         appGettingOff = true;
-        if (threadIntputStream == null)     //а если потока нет, то disconnect() вызывается здесь.
-        {
-//System.out.print ("\nonactionLogout() / вызываем disconnect()");
+        if (threadIntputStream == null)     //… а если потока нет, то disconnect() вызывается здесь.
             disconnect();
-        }
     }// onactionLogout ()
 
 
@@ -332,21 +333,20 @@ public class Controller implements Initializable
             {
                 if (tipsMode == TIPS_ON)   alertWarning (ALERT_EMPTY_MESSAGE);
             }
-            else
-            if (changeNicknameMode == MODE_CHANGE_NICKNAME) //< Будем считать этот режим более сильным, чем режим privateMode
+            else if (changeNicknameMode == MODE_CHANGE_NICKNAME)
             {
                 String message = String.format (ALERT_CONFIRM_NEW_NICKNAME, msg);
                 if (alertConfirmationYesNo (message) == ANSWER_YES)
                     boolSent = syncSendMessageToServer (CMD_CHANGE_NICKNAME, msg);
             }
-            else
-            if (privateMode == MODE_PRIVATE)
+            else if (privateMode == MODE_PRIVATE)
             {
             //Если мы в приватном режиме, то для отправки сообщения нужно выбрать получателя с списке
             //участников чата.
                 String name = listviewClients.getSelectionModel().getSelectedItem();
+
                 if (name == null || name.isEmpty())
-                    alertWarning(ALERT_ADDRESSEE_NOTSELECTED); //< если получатель не выбран
+                    alertWarning (ALERT_ADDRESSEE_NOTSELECTED); //< если получатель не выбран
                 else
                 {
                     boolSent = syncSendMessageToServer(CMD_PRIVATE_MSG, name, msg);
@@ -370,18 +370,18 @@ public class Controller implements Initializable
         boolean boolSent = false;
         if (lines != null  &&  lines.length > 0  &&  dos != null)
         try
-        {
-            for (String msg : lines)
+        {   for (String msg : lines)
                 dos.writeUTF(msg);
             boolSent = true;
         }
-        catch (IOException e) { alertWarning(ALERT_UNABLE_TO_SEND_MESSAGE); }
+        catch (IOException e) { alertWarning (ALERT_UNABLE_TO_SEND_MESSAGE); }
         return boolSent;
     }// syncSendMessageToServer ()
 
 
     @Override public String toString() { return "Controller : "+ userName; }
 
+//Переключение режима чата приватный/публичный.
     public void onactionTogglePrivateMode ()
     {
         privateMode = !privateMode;
@@ -393,6 +393,7 @@ public class Controller implements Initializable
     public void onactionStat () {   syncSendMessageToServer(CMD_STAT);   }
     public void onactionWhoAmI ()   {   syncSendMessageToServer(CMD_WHOAMI);   }
 
+//Включение/выключение режима смены имени.
     public void onactionChangeNickname ()
     {
         changeNicknameMode = !changeNicknameMode;
@@ -401,6 +402,7 @@ public class Controller implements Initializable
             txtareaMessages.appendText (PROMPT_CHANGE_NICKNAME);
     }
 
+//Вывод предупреждения в отдельном окне.
     public static void alertWarning (String msg)
     {
         if (msg != null)
@@ -409,19 +411,23 @@ public class Controller implements Initializable
             });
     }// alertWarning ()
 
+//Запрос подтверждения в отдельном окне.
     public static boolean alertConfirmationYesNo (String message)
     {
         boolean boolYes = ANSWER_NO;
-        Alert a = new Alert (Alert.AlertType.CONFIRMATION, message, ButtonType.YES, ButtonType.NO);
-        Optional<ButtonType> option = a.showAndWait();
+        Optional<ButtonType> option =
+            new Alert (Alert.AlertType.CONFIRMATION, message, ButtonType.YES, ButtonType.NO)
+            .showAndWait();
 
-        //Боже! Как всё непросто!.. Надеюсь, я просто что-то не так делаю…
         if (option.isPresent() && option.get() == ButtonType.YES)
             boolYes = ANSWER_YES;
+    //Боже! Как всё непросто!.. Или я что-то не так делаю?…
 
         return boolYes;
     }// alertConfirmationYesNo ()
 
+//Включение/выключение некоторых сообщений и предупреждений, чтобы они не замусоривали окно чата,
+// когда юзер разобрался с интерфейсом.
     public void onactionTips ()
     {
         tipsMode = !tipsMode;
@@ -430,4 +436,4 @@ public class Controller implements Initializable
     }
 
 
-}// class Controller
+}// class Hw8Controller
