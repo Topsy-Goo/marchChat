@@ -239,7 +239,7 @@ public class Controller implements Initializable
                     onactionChangeNickname();
                     syncSendMessageToServer (CMD_CLIENTS_LIST);
                     break;
-                case CMD_BADLOGIN:   //Это сообщение можем получить при регистрации и при смене имени.
+                case CMD_BADNICKNAME:   //Это сообщение можем получить при регистрации и при смене имени.
                     alertWarning(ALERT_BAN_NICKNAME_SPECIFIED);
                     break;
                 case CMD_EXIT:  onactionLogout (DONTSEND_EXIT);

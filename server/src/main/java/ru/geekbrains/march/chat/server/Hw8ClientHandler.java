@@ -161,7 +161,7 @@ public class Hw8ClientHandler
 
                         if (boolSent)  msgCounter++;
                         else
-                        syncSendMessageToClient (CMD_ERROR, String.format (FORMAT_UNABLE_SEND_MESSAGE_TO, msg));
+                        syncSendMessageToClient(String.format (FORMAT_UNABLE_SEND_MESSAGE_TO, msg));
                     }
                 }
             }
@@ -174,14 +174,14 @@ public class Hw8ClientHandler
 //Обработчик команды CMD_CHANGE_NICKNAME.
     private void onCmdChangeNickname ()
     {
-        String newname = readInputStreamUTF();
-        if (server.syncChangeNickname (clientName, newname))
+        String name = readInputStreamUTF();
+        if (server.syncValidateUser (this, name, VALIDATE_AND_RENAME))
         {
-            server.syncBroadcastMessage (String.format (FORMAT_RENAMING_TO_, newname), this);
-            clientName = newname;
+            server.syncBroadcastMessage (String.format (FORMAT_RENAMING_TO_, name), this);
+            clientName = name;
             syncSendMessageToClient (CMD_CHANGE_NICKNAME, clientName);
         }
-        else syncSendMessageToClient (CMD_NICKNAME_BUSY);
+        else syncSendMessageToClient (CMD_BADNICKNAME);
     }// onCmdChangeNickname ()
 
 //Обработчик команды CMD_LOGIN.
@@ -190,14 +190,18 @@ public class Hw8ClientHandler
         if (clientName != null)
             throw new RuntimeException("ERROR @ runThreadClientToServer() : повторная регистрация?");
 
-        clientName = server.syncValidateOnLogin (readInputStreamUTF(), readInputStreamUTF(), this);
-        if (clientName != null)
+        clientName = readInputStreamUTF(); //< Это немного преждевременно, но удобно, т.к.
+                                           // syncValidateUser() сможет вызвать onClientsListChanged().
+        if (server.syncValidateUser (this, clientName, VALIDATE_AND_ADD))
         {
             syncSendMessageToClient (CMD_LOGIN, clientName);
             sendClientsList();
             server.syncBroadcastMessage (ENTER_CHAT, this);
         }
-        else syncSendMessageToClient (CMD_BADLOGIN); //< Серверу не понравилось введённое пользователем имя.
+        else
+        {   clientName = null;
+            syncSendMessageToClient (CMD_BADNICKNAME); //< Серверу не понравилось введённое пользователем имя.
+        }
     }// onCmdLogin ()
 
 //Отсылаем клиенту новый список клиентов.
@@ -233,13 +237,13 @@ public class Hw8ClientHandler
     }// syncSendMessageToClient ()
 
 
-// (Этот метод вызывается при завершении к.-л. потока при обработке им сообщения CMD_EXIT.)
+// (Этот метод вызывается при завершении к.-л. потоком при обработке им сообщения /exit.)
     private void close ()
     {
         connectionGettingClosed = true;
         if (server != null)
         {
-            server.syncRemoveClient (this);
+            server.syncRemoveClient(this, MODE_UPDATE);
             server.syncBroadcastMessage (LEFT_CHAT, this);
             server = null;
         }
