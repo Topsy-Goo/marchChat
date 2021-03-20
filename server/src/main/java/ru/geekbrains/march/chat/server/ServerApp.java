@@ -11,11 +11,13 @@ public class ServerApp
             CMD_WHOAMI = "/who_am_i",
             CMD_ONLINE = "/online",
             CMD_LOGIN = "/login",
-            CMD_BADNICKNAME = "/login_bad",
+            CMD_BADLOGIN = "/login_bad",
+            CMD_NICKNAME_BUSY = "/nickname_busy",
             CMD_CHANGE_NICKNAME = "/change_nik",
             CMD_CLIENTS_LIST = "/clients_list",
             CMD_CLIENTS_LIST_CHANGED = "/clients_list_changed",
             SERVER_ADDRESS = "localhost",
+            CMD_ERROR = "/error",
             SERVER_IS_OFF = "\nСервер завершил работу.";
 
     public static final int

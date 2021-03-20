@@ -186,7 +186,7 @@ public class ClientHandler
             //server.onClientsListChanged();
             syncSendMessageToClient (CMD_CHANGE_NICKNAME, clientName);
         }
-        else syncSendMessageToClient (CMD_BADNICKNAME);
+        else syncSendMessageToClient(CMD_BADLOGIN);
     }// onCmdChangeNickname ()
 
 //Обработчик команды CMD_LOGIN.
@@ -204,7 +204,7 @@ public class ClientHandler
         }
         else
         {   clientName = null;
-            syncSendMessageToClient (CMD_BADNICKNAME); //< Серверу не понравилось введённое пользователем имя.
+            syncSendMessageToClient(CMD_BADLOGIN); //< Серверу не понравилось введённое пользователем имя.
         }
     }// onCmdLogin ()
 

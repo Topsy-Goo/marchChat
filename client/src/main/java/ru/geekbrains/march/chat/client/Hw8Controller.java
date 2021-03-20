@@ -22,23 +22,24 @@ import static ru.geekbrains.march.chat.server.ServerApp.*;
 public class Hw8Controller implements Initializable
 {
     private final static String
-            TXT_INTRODUCE_YOURSELF = "Представьтесь:",
+            TXT_INTRODUCE_YOURSELF = "Введите логин:  ",
             TXT_YOU_LOGED_IN_AS = "Вы вошли в чат как: ",
             FORMAT_TOYOU_PRIVATE_FROM = "\n[Вам приватно от %s]:\n\t%s",
             FORMAT_YOU_PRIVATE_TO = "\n[Приватно от Вас к %s]:\n\t%s",
+            ALERT_NICKNAME_BUSY = "\nУказанное имя пользователя уже используется.",
+            ALERT_UNABLE_TO_SEND_MESSAGE = "Не удадось отправить сообщение.",
+            ALERT_INCORRECT_LOGIN_PASSWORD = "Введены некорректные логин или пароль.",
+            ALERT_ADDRESSEE_NOTSELECTED = "Не выбран получатель приватного сообщения.\nВыберите получателя сообщения в списке участников чата и попробуйте снова.",
+            ALERT_EMPTY_MESSAGE = "Введённое сообщение пустое или содержит только пробельные символы.",
+            ALERT_CONFIRM_NEW_NICKNAME = "Подтвердите смену вашего имени. Новое имя:\n%s",
             PROMPT_UNABLE_TO_CONNECT = "\nНе удалось подключиться.",
             PROMPT_YOU_ARE_LOGED_OFF = "\nВы вышли из чата.",
             PROMPT_CONNECTION_LOST = "\nСоединение разорвано.",
-            ALERT_BAD_NICKNAME_SPECIFIED = "\nУказанное имя пользователя некорректно или уже используется.",
-            ALERT_UNABLE_TO_SEND_MESSAGE = "Не удадось отправить сообщение.",
             PROMPT_PRIVATE_MODE_IS_ON = "\n\nВы вошли в приватный режим. Ваши сообщения будут видны только выбранному собеседнику.",
             PROMPT_PRIVATE_MODE_IS_OFF = "\n\nВы вышли из приватного режима. Ваши сообщения будут видны всем участникам чата.",
-            ALERT_ADDRESSEE_NOTSELECTED = "Не выбран получатель приватного сообщения.\nВыберите получателя сообщения в списке участников чата и попробуйте снова.",
             PROMPT_STATISTICS = "\nсообщений = ",
             PROMPT_CHANGE_NICKNAME = "\n\nОправьте новое имя как сообщение. Чат-сервер присвоит его Вам, если это" +
                                      " возможно.\n\nДля выхода из режима смены имени нажмите кнопку «Сменить ник» ещё раз.\n",
-            ALERT_EMPTY_MESSAGE = "Введённое сообщение пустое или содержит только пробельные символы.",
-            ALERT_CONFIRM_NEW_NICKNAME = "Подтвердите смену вашего имени. Новое имя:\n%s",
             PROMP_TIPS_ON = "\nПодсказки включены."
             ;
 
@@ -66,9 +67,13 @@ public class Hw8Controller implements Initializable
                     tipsMode = TIPS_ON;
 
     @FXML TextArea txtareaMessages;
-    @FXML TextField txtfieldUsernameField, txtfieldMessage;
+    @FXML TextField txtfieldUsername,
+                    txtfieldPassword,
+                    txtfieldMessage;
     @FXML Button buttonLogin;
-    @FXML HBox hboxMessagePanel, hboxToolbar;
+    @FXML HBox  hboxPassword,
+                hboxMessagePanel,
+                hboxToolbar;
     @FXML ToggleButton btnToolbarPrivate,
                        btnToolbarChangeNickname,
                        btnToolbarTips;
@@ -82,7 +87,6 @@ public class Hw8Controller implements Initializable
     {
         threadParent = Thread.currentThread();
         updateUserInterface (CANNOT_CHAT);
-
     }// initialize ()
 
 
@@ -91,7 +95,7 @@ public class Hw8Controller implements Initializable
     private void updateUserInterface (boolean canChat)
     {
         Platform.runLater(()->{
-            txtfieldUsernameField.setDisable (canChat == CAN_CHAT);
+            txtfieldUsername.setDisable(canChat == CAN_CHAT);
             buttonLogin.setText (canChat == CAN_CHAT ? "Выйти" : "Войти");
             btnToolbarPrivate.setSelected (privateMode);
             btnToolbarChangeNickname.setSelected (changeNicknameMode);
@@ -99,15 +103,17 @@ public class Hw8Controller implements Initializable
             if (canChat == CAN_CHAT)
             {
                 txtIntroduction.setText (TXT_YOU_LOGED_IN_AS);
-                txtfieldUsernameField.setText (userName);
+                txtfieldUsername.setText(userName);
                 txtfieldMessage.requestFocus();
             }
             else
             {
                 txtIntroduction.setText (TXT_INTRODUCE_YOURSELF);
                 listviewClients.getItems().clear();
-                txtfieldUsernameField.requestFocus();
+                txtfieldUsername.requestFocus();
             }
+            hboxPassword.setManaged (canChat != CAN_CHAT);
+            hboxPassword.setVisible (canChat != CAN_CHAT);
             hboxToolbar.setManaged (canChat == CAN_CHAT);
             hboxToolbar.setVisible (canChat == CAN_CHAT);
             hboxMessagePanel.setManaged (canChat == CAN_CHAT);
@@ -156,6 +162,7 @@ public class Hw8Controller implements Initializable
         dis = null;
         dos = null;
         threadIntputStream = null;
+        System.out.println ("\n\t"+userName+" отключен"); //< для отладки
     }// disconnect ()
 
 
@@ -223,20 +230,17 @@ public class Hw8Controller implements Initializable
             {
                 case CMD_CHAT_MSG:    txtareaMessages.appendText ('\n'+ readInputStreamUTF());
                     break;
-                case CMD_CLIENTS_LIST_CHANGED:  syncSendMessageToServer(CMD_CLIENTS_LIST);
+                case CMD_CLIENTS_LIST_CHANGED:  syncSendMessageToServer (CMD_CLIENTS_LIST);
                     break;
                 case CMD_CLIENTS_LIST:  onCmdClientsList();
                     break;
-                case CMD_LOGIN:  //Сервер одобрил отправленное ему имя пользователя.
-                    userName = readInputStreamUTF();
-                    loginState = LOGED_IN;
-                    updateUserInterface (CAN_CHAT);
+                case CMD_LOGIN:   onCmdLogIn();  //Сервер одобрил отправленное ему имя пользователя.
                     break;
-                case CMD_CHANGE_NICKNAME: //< Сервер одобрил отправленное ему имя пользователя.
-                    onCmdChangeNickname();
+                case CMD_BADLOGIN:    alertWarning (ALERT_INCORRECT_LOGIN_PASSWORD);
                     break;
-                case CMD_BADNICKNAME:   //< может приходить при регистрации и при смене имени.
-                    alertWarning (ALERT_BAD_NICKNAME_SPECIFIED);
+                case CMD_CHANGE_NICKNAME:  onCmdChangeNickname();
+                    break;
+                case CMD_NICKNAME_BUSY:    alertWarning (ALERT_NICKNAME_BUSY);
                     break;
                 case CMD_EXIT:  onactionLogout (DONTSEND_EXIT);
                     break;
@@ -249,19 +253,31 @@ public class Hw8Controller implements Initializable
                     break;
                 case CMD_WHOAMI:  txtareaMessages.appendText ("\n "+ TXT_YOU_LOGED_IN_AS + readInputStreamUTF());
                     break;
+                case CMD_ERROR:   txtareaMessages.appendText ("\nОшибка: " + readInputStreamUTF());
                 default:
                     throw new UnsupportedOperationException (
-                            "ERROR @ runTreadInputStream() : незарегистрированное сообщение:\n\t" + msg);
+                            "ERROR @ runTreadInputStream() : незарегистрированное сообщение:\n-\t" + msg);
             }//switch
         }//while
         disconnect();
     }// runTreadInputStream ()
 
+
+// Обработчик команды CMD_LOGIN
+    void onCmdLogIn ()
+    {
+        userName = readInputStreamUTF();
+        System.out.println ("\n\t"+userName+" подключен"); //< для отладки
+        loginState = LOGED_IN;
+        updateUserInterface (CAN_CHAT);
+    }// onCmdLogIn ()
+
 // Обработчик команды CMD_CHANGE_NICKNAME.
     private void onCmdChangeNickname ()
     {
         userName = readInputStreamUTF();
-        txtfieldUsernameField.setText (userName);
+        System.out.println ("\n\tсменил ник на "+userName); //< для отладки
+        txtfieldUsername.setText(userName);
         onactionChangeNickname();
         syncSendMessageToServer (CMD_CLIENTS_LIST);
     }// onCmdChangeNickname ()
@@ -289,16 +305,17 @@ public class Hw8Controller implements Initializable
         Platform.runLater(()->{
             if (loginState == LOGED_OFF)
             {
-                String name = txtfieldUsernameField.getText().trim();
-                if (name.isEmpty())
+                String  login = txtfieldUsername.getText(),
+                        password = txtfieldPassword.getText();
+
+                if (login == null || password == null || login.isEmpty() || password.isEmpty())
                 {
-                    alertWarning ("\nВведите другое имя пользователя.");
-                    txtfieldUsernameField.requestFocus();
+                    alertWarning (ALERT_INCORRECT_LOGIN_PASSWORD);
+                    txtfieldUsername.requestFocus();
                 }
                 else
-                {   userName = name;
-                    connect();
-                    syncSendMessageToServer(CMD_LOGIN, userName);
+                {   connect();
+                    syncSendMessageToServer (CMD_LOGIN, login, password);
                 }
             }
             else onactionLogout (SEND_EXIT); //Кнопка «Войти» используется и для выхода из чата.
@@ -311,7 +328,7 @@ public class Hw8Controller implements Initializable
     {
         //Этот метод может быть вызван из runTreadInputStream() как реакция на приход сообщения /exit от сервера.
         if (sendExitMessage == SEND_EXIT)
-            syncSendMessageToServer(CMD_EXIT);
+            syncSendMessageToServer (CMD_EXIT);
 
         loginState = LOGED_OFF;
     //при нормальном течении событий disconnect() вызовется из потока threadIntputStream в самом конце, …
@@ -390,8 +407,8 @@ public class Hw8Controller implements Initializable
             txtareaMessages.appendText (privateMode ? PROMPT_PRIVATE_MODE_IS_ON : PROMPT_PRIVATE_MODE_IS_OFF);
     }
 
-    public void onactionStat () {   syncSendMessageToServer(CMD_STAT);   }
-    public void onactionWhoAmI ()   {   syncSendMessageToServer(CMD_WHOAMI);   }
+    public void onactionStat () {   syncSendMessageToServer (CMD_STAT);   }
+    public void onactionWhoAmI ()   {   syncSendMessageToServer (CMD_WHOAMI);   }
 
 //Включение/выключение режима смены имени.
     public void onactionChangeNickname ()
