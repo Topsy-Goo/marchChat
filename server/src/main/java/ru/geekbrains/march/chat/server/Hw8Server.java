@@ -3,9 +3,8 @@ package ru.geekbrains.march.chat.server;
 import java.io.IOException;
 import java.net.ServerSocket;
 import java.net.Socket;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Scanner;
+import java.security.InvalidParameterException;
+import java.util.*;
 
 import static ru.geekbrains.march.chat.server.ServerApp.*;
 
@@ -29,11 +28,60 @@ public class Hw8Server
     private final int CONSOLE_THREAD_SLEEPINTERVAL = 250;
 
     private int port = 0;
-    private final Map<String, Hw8ClientHandler> map;
+    private final Map<String, UserEntry> map;
     private String[] publicCliendsList;
     private Thread threadConsoleToClient;
     private final Thread threadMain;
     private boolean serverGettingOff = false;
+
+    private class UserEntry
+    {
+        String  login, password, name;
+        Hw8ClientHandler client;
+
+        UserEntry (String lgn, String psw, String nm, Hw8ClientHandler cl)
+        {
+            if (checkString(lgn) && checkString(psw) && checkString(nm))
+            {
+                login = lgn;
+                password = psw;
+                name = nm;
+                //client = cl;
+            }
+            else throw new InvalidParameterException ("ERROR@UserEntry() : some parameters are empty or null.");
+        }
+
+        String validate (String lgn, String psw, Hw8ClientHandler cl)
+        {
+            if (login.equals(lgn)  &&  password.equals(psw))
+            {
+                client = cl;
+                return name;
+            }
+            return null;
+        }
+
+        void loOut ()   {   client = null;   }
+
+        boolean checkString (String str) {  return  str != null  &&  !str.trim().isEmpty();  }
+
+        boolean setName (String newname)
+        {
+            boolean boolOk = checkString (newname);
+            if (boolOk)  name = newname;
+            return boolOk;
+        }
+
+        boolean isLogedIn ()    {   return client != null;   }
+        String getName ()   { return name; }
+
+        void onServerDown ()      {   if (client != null)    client.onServerDown();   }
+
+        boolean syncSendMessageToClient (String ... lines)
+        {
+            return  client != null  &&  client.syncSendMessageToClient (lines);
+        }
+    }// class UserEntry
 
 
     public Hw8Server (int port)
@@ -41,6 +89,7 @@ public class Hw8Server
         if (port < PORT_MIN || port > PORT_MAX)    throw new IllegalArgumentException();
 
         map = new HashMap<>();
+        tmpFillUsersMap();
         syncPublicUpdateClientsList();
         this.port = port;
         threadMain = Thread.currentThread();
@@ -74,13 +123,23 @@ public class Hw8Server
     }// Hw8Server (int port)
 
 
+//Заполняем Map тестовыми значениями.
+    private void tmpFillUsersMap ()
+    {   //      name                   login, pass, name
+        map.put("u1111", new UserEntry ("1", "11", "u1111", null));
+        map.put("u2222", new UserEntry ("2", "22", "u2222", null));
+        map.put("u3333", new UserEntry ("3", "33", "u3333", null));
+        map.put("u4444", new UserEntry ("4", "44", "u4444", null));
+    }// tmpFillUsersMap ()
+
+
 // Подготовка к «отключению» сервра.
     private void serverGettingDown ()
     {
         serverGettingOff = true;
         if (map != null) //< закрываем всех клиентов.
         {
-            for (Map.Entry<String, Hw8ClientHandler> entry : map.entrySet())
+            for (Map.Entry<String, UserEntry> entry : map.entrySet())
                 entry.getValue().onServerDown();
         }
     }// serverGettingDown ()
@@ -140,48 +199,80 @@ public class Hw8Server
 
 
     //Проверяем имя клиента на уникальность и при необходимости добавляем его в список подключенных клиентов.
-    public synchronized boolean syncValidateUser (Hw8ClientHandler client, String newname, boolean add)
+    public synchronized String syncValidateOnLogin (String login, String password, Hw8ClientHandler client)
+    {
+        String userName = null;
+
+        if (login != null  &&  password != null  &&  map != null)
+        {
+            for (Map.Entry<String, UserEntry> entry : map.entrySet())
+            {
+                UserEntry user = entry.getValue();
+                if (user.isLogedIn())   continue;
+
+                userName = user.validate (login, password, client);
+                if (userName != null)
+                {
+                    if (entry.getKey() != userName)
+                        throw new RuntimeException("ERROR @ syncValidateOnLogin() : username != key.");
+
+                    syncPublicUpdateClientsList();
+                    syncBroadcastMessage (CMD_CLIENTS_LIST_CHANGED, null);
+                    break;
+                }
+            }
+        }
+        return userName;
+    }// syncValidateOnLogin ()
+
+
+    public synchronized boolean syncChangeNickname (String oldname, String newname)
     {
         boolean boolOk = false;
-        if (newname != null && !newname.isEmpty() &&
-            map != null && !map.containsKey(newname))
-        {
-            if (add == VALIDATE_AND_RENAME)
-                syncRemoveClient (client, MODE_SILENT);
-                // (Здесь мы вносим изменения в список клиентов, а завершат переименование
-                // клиента Hw8ClientHandler и Hw8CController.)
+        UserEntry user = (map == null) ? null : map.get(oldname);
 
-            map.put (newname, client);
+        if (user != null  &&  user.setName (newname))
+        {
+            map.remove (oldname);
+            map.put (newname, user);
+            syncPublicUpdateClientsList();
+            syncBroadcastMessage (CMD_CLIENTS_LIST_CHANGED, null);
             boolOk = true;
+        }
+        return boolOk;
+    }// syncChangeNickname ()
+
+
+//Помечаем клиента, как покинувшего чат (просто в соответствующем UserEntry сбрасываем поле client в null).
+    public synchronized void syncRemoveClient (Hw8ClientHandler client)
+    {
+        UserEntry user;
+        if (client != null  &&  (user = map.get (client.getClientName())) != null)
+        {
+            user.loOut();
             syncPublicUpdateClientsList();
             syncBroadcastMessage (CMD_CLIENTS_LIST_CHANGED, null);
         }
-        return boolOk;
-    }// syncValidateUser ()
+    }// syncRemoveClient ()
 
 
 //В списке клиентов произошли изменения (добавление, удаление, переименование). Составляем список
 // имён участников чата для рассылки этим самым участникам.
     private synchronized void syncPublicUpdateClientsList ()
     {
+        Set<String> names = new HashSet<>();
+        String name;
+
         if (map != null)
+        for (Map.Entry<String, UserEntry> entry : map.entrySet())
         {
-            publicCliendsList = map.keySet().toArray(new String[0]);
+            UserEntry user = entry.getValue();
+            if (user.isLogedIn())
+                names.add (user.getName());
         }
+        publicCliendsList = names.toArray (new String[0]);
+
     }// syncPublicUpdateClientsList ()
-
-
-    //Удаляем клиента из списка подключенных клиентов.
-    public synchronized void syncRemoveClient (Hw8ClientHandler client, boolean mode)
-    {
-        if (client != null  &&  map.remove(client.getClientName()) != null)
-        {
-            syncPublicUpdateClientsList();
-            if (mode == MODE_UPDATE)
-                syncBroadcastMessage (CMD_CLIENTS_LIST_CHANGED, null);
-        }
-
-    }// syncRemoveClient ()
 
 
 //Рассылаем указанное сообщение всем клиентам из нашего списка подключенных клиентов.
@@ -190,19 +281,20 @@ public class Hw8Server
         boolean boolSent = msg != null  &&  map != null  &&  !(msg = msg.trim()).isEmpty();
 
         if (boolSent)
-        for (Map.Entry<String, Hw8ClientHandler> entry : map.entrySet())
+        for (Map.Entry<String, UserEntry> entry : map.entrySet())
         {
-            Hw8ClientHandler client = entry.getValue();
+            UserEntry user = entry.getValue();
 
-            if (msg.equalsIgnoreCase (CMD_CLIENTS_LIST_CHANGED))
-            {
-                boolSent = client.syncSendMessageToClient (CMD_CLIENTS_LIST_CHANGED);
-            }
-            else
-            {
-                String name = (from != null) ? from.getClientName() : SERVERNAME;
-                boolSent = client.syncSendMessageToClient(CMD_CHAT_MSG, name + ":\n\t" + msg);
-            }
+            if (user.isLogedIn())
+                if (msg.equalsIgnoreCase (CMD_CLIENTS_LIST_CHANGED))
+                {
+                    boolSent = user.syncSendMessageToClient (CMD_CLIENTS_LIST_CHANGED);
+                }
+                else
+                {
+                    String name = (from != null) ? from.getClientName() : SERVERNAME;
+                    boolSent = user.syncSendMessageToClient (CMD_CHAT_MSG, name + ":\n\t" + msg);
+                }
         }
         return boolSent;
     }// syncBroadcastMessage ()
@@ -219,23 +311,24 @@ public class Hw8Server
         {
             String nameFrom = (clientFrom != null) ? clientFrom.getClientName() : SERVERNAME;
 
-            for (Map.Entry<String, Hw8ClientHandler> entry : map.entrySet())
+            for (Map.Entry<String, UserEntry> entry : map.entrySet())
             {
-                Hw8ClientHandler clientTo = entry.getValue();
-                if (nameTo.equals (clientTo.getClientName()))
+                UserEntry userTo = entry.getValue();
+
+                if (nameTo.equals (userTo.getName()))
                 {
                     if (clientFrom == null && message.equalsIgnoreCase (CMD_EXIT)) //< Server научился отключать пользователей.
-                        boolSent = clientTo.syncSendMessageToClient (CMD_EXIT);
+                        boolSent = userTo.syncSendMessageToClient (CMD_EXIT);
                     else
-                        boolSent = clientTo.syncSendMessageToClient (CMD_PRIVATE_MSG, nameFrom, message);
+                        boolSent = userTo.syncSendMessageToClient (CMD_PRIVATE_MSG, nameFrom, message);
 
                     break;
                 }
             }
             if (!boolSent)
-            if (clientFrom == null) System.out.printf (FORMAT_NO_SUCH_USER, nameTo);
-            else
-            clientFrom.syncSendMessageToClient (String.format(FORMAT_NO_SUCH_USER, nameTo));
+                if (clientFrom == null) System.out.printf (FORMAT_NO_SUCH_USER, nameTo);
+                else
+                clientFrom.syncSendMessageToClient (String.format(FORMAT_NO_SUCH_USER, nameTo));
         }
         return boolSent;
     }// syncSendPrivateMessage ()
@@ -243,6 +336,5 @@ public class Hw8Server
 
 //Предоставляем публичный список участников чата всем желающим.
     public String[] getClientsList ()   {   return publicCliendsList;   }// getClientsList ()
-
 
 }// class Hw8Server

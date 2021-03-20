@@ -23,7 +23,7 @@
 
 		<Text fx:id="txtIntroduction"/>
 
-		<TextField fx:id="txtfieldUsernameField"
+		<TextField fx:id="txtfieldUsername"
 			HBox.hgrow="NEVER"
 			onAction="#onactionLogin"
 			promptText="Введите логин здесь.">
@@ -33,6 +33,22 @@
 		<Button fx:id="buttonLogin"
 				onAction="#onactionLogin"
 				text="Войти"/>
+	</HBox>
+
+	<!-- ================= Элементы управления для ввода пароля. ==================== -->
+	<HBox alignment="BASELINE_LEFT" fx:id="hboxPassword">
+
+		<VBox.margin><Insets top="5" bottom="2" right="5" left="5"/></VBox.margin>
+
+		<Text text="Введите пароль:"/>
+
+		<TextField fx:id="txtfieldPassword"
+			HBox.hgrow="NEVER"
+			onAction="#onactionLogin"
+			promptText="Введите пароль здесь.">
+			<HBox.margin><Insets right="5" left="5"/></HBox.margin>
+		</TextField>
+
 	</HBox>
 
 	<!-- ================= TextArea и ListView ноходятся в этом поясе. ============== -->
