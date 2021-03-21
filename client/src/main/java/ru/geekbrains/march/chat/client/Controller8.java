@@ -17,9 +17,9 @@ import java.net.URL;
 import java.util.Optional;
 import java.util.ResourceBundle;
 
-import static ru.geekbrains.march.chat.server.ServerAppHw8.*;
+import static ru.geekbrains.march.chat.server.ServerApp8.*;
 
-public class ControllerHw8 implements Initializable
+public class Controller8 implements Initializable
 {
     private final static String
             TXT_INTRODUCE_YOURSELF = "Введите логин:  ",
@@ -453,4 +453,4 @@ public class ControllerHw8 implements Initializable
     }
 
 
-}// class ControllerHw8
+}

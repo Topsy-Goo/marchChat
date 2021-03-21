@@ -5,9 +5,9 @@ import java.io.DataOutputStream;
 import java.io.IOException;
 import java.net.Socket;
 
-import static ru.geekbrains.march.chat.server.ServerAppHw8.*;
+import static ru.geekbrains.march.chat.server.ServerApp8.*;
 
-public class ClientHandlerHw8
+public class ClientHandler8
 {
     private String clientName; //< После регистрации пользователя clientName == Controller.userName.
     private final int C2S_THREAD_SLEEPINTERVAL = 100,
@@ -16,7 +16,7 @@ public class ClientHandlerHw8
     private boolean connectionGettingClosed = false;
 
     private Socket socket;
-    private ServerHw8 server;
+    private Server8 server;
     private DataInputStream dis;
     private DataOutputStream dos;
     private Thread threadClientToServer,
@@ -33,7 +33,7 @@ public class ClientHandlerHw8
             SERVER_OFF = "Сервер прекратил работу."
             ;
 
-    public ClientHandlerHw8 (ServerHw8 serv, Socket sock)
+    public ClientHandler8 (Server8 serv, Socket sock)
     {
         if (sock == null || serv == null)
             throw new IllegalArgumentException();
@@ -56,7 +56,7 @@ public class ClientHandlerHw8
             ioe.printStackTrace();
         }
         System.out.print (CLIENT_CREATED);
-    }// ClientHandlerHw8 (Socket)
+    }// ClientHandler8 (Socket)
 
 
     private String readInputStreamUTF ()
@@ -71,7 +71,7 @@ public class ClientHandlerHw8
                 msg = dis.readUTF();
                 break;
             }
-            else //Такой же блок есть в ControllerHw8.readInputStreamUTF(). Там я описал причину,
+            else //Такой же блок есть в Controller8.readInputStreamUTF(). Там я описал причину,
             {    // по которой оставил его без изменений.
                 Thread.sleep(C2S_THREAD_SLEEPINTERVAL);
 
@@ -90,7 +90,7 @@ public class ClientHandlerHw8
         {
             connectionGettingClosed = true;
             msg = null;
-            System.out.print("\nClientHandlerHw8.readInputStreamUTF() : ошибка соединения.");
+            System.out.print("\nClientHandler8.readInputStreamUTF() : ошибка соединения.");
             e.printStackTrace();
         }
         return msg;
@@ -102,7 +102,7 @@ public class ClientHandlerHw8
         String msg;
         while (!connectionGettingClosed && (msg = readInputStreamUTF()) != null)
         {
-    // Я считаю, что 2 цикла while здесь не подходят, т.к. у ClientHandlerHw8 есть (или могут появиться)
+    // Я считаю, что 2 цикла while здесь не подходят, т.к. у ClientHandler8 есть (или могут появиться)
     // команды, которые он должен обрабатывать независимо от состояния регистрации клиента.
 
             msg = msg.trim().toLowerCase();
@@ -164,7 +164,7 @@ public class ClientHandlerHw8
                 }
             }
         }//while
-        System.out.print ("\nClientHandlerHw8.runThreadClientToServer() - поток threadClientToServer закрылся.");
+        System.out.print ("\nClientHandler8.runThreadClientToServer() - поток threadClientToServer закрылся.");
         threadClientToServer = null;
         close();
     }// runThreadClientToServer ()
@@ -225,7 +225,7 @@ public class ClientHandlerHw8
         catch (IOException e)
         {
             connectionGettingClosed = true;
-            System.out.print ("\nClientHandlerHw8.syncSendMessageToClient() : ошибка соединения.");
+            System.out.print ("\nClientHandler8.syncSendMessageToClient() : ошибка соединения.");
         }
         return boolSent;
     }// syncSendMessageToClient ()
@@ -257,7 +257,7 @@ public class ClientHandlerHw8
             socket = null;
             dos = null;
             dis = null;
-            System.out.printf("\n(ClientHandlerHw8.close() : Клиент %s закрылся.)\n", clientName);
+            System.out.printf("\n(ClientHandler8.close() : Клиент %s закрылся.)\n", clientName);
             clientName = null;
         }
     }// close ()
@@ -273,4 +273,4 @@ public class ClientHandlerHw8
 
     public String getClientName ()  {   return clientName;  }
 
-}// class ClientHandlerHw8
+}

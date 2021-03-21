@@ -10,7 +10,7 @@
 
 <?import javafx.scene.control.ListView?>
 <?import javafx.scene.control.ToggleButton?>
-<VBox fx:controller="ru.geekbrains.march.chat.client.ControllerHw8"
+<VBox fx:controller="ru.geekbrains.march.chat.client.Controller8"
 	  xmlns:fx="http://javafx.com/fxml"
 	  alignment="center">
 

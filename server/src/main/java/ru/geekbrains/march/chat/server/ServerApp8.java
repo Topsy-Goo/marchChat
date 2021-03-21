@@ -1,6 +1,6 @@
 package ru.geekbrains.march.chat.server;
 
-public class ServerAppHw8
+public class ServerApp8
 {
     public static final String
             CMD_CHAT_MSG = "/chat",
@@ -26,8 +26,8 @@ public class ServerAppHw8
 
     public static void main (String[] args)
     {
-        new ServerHw8 (SERVER_PORT);
+        new Server8 (SERVER_PORT);
         System.out.print (SERVER_IS_OFF);
     }// main ()
 
-}// class ServerAppHw8
+}
