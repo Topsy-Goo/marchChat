@@ -17,7 +17,7 @@ import java.net.URL;
 import java.util.Optional;
 import java.util.ResourceBundle;
 
-import static ru.geekbrains.march.chat.server.ServerApp.*;
+import static ru.geekbrains.march.chat.server.ServerAppHw8.*;
 
 public class ControllerHw8 implements Initializable
 {

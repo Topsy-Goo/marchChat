@@ -14,6 +14,9 @@ public class ServerAppHw8
             CMD_CHANGE_NICKNAME = "/change_nik",
             CMD_CLIENTS_LIST = "/clients_list",
             CMD_CLIENTS_LIST_CHANGED = "/clients_list_changed",
+            CMD_ERROR = "/error",
+            CMD_NICKNAME_BUSY = "/nickname_busy",
+            CMD_BADLOGIN = "/badlogin",
             SERVER_ADDRESS = "localhost",
             SERVER_IS_OFF = "\nСервер завершил работу.";
 

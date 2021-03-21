@@ -5,8 +5,7 @@ import java.io.DataOutputStream;
 import java.io.IOException;
 import java.net.Socket;
 
-import static ru.geekbrains.march.chat.server.ServerApp.*;
-import static ru.geekbrains.march.chat.server.ServerApp.CMD_EXIT;
+import static ru.geekbrains.march.chat.server.ServerAppHw8.*;
 
 public class ClientHandlerHw8
 {
