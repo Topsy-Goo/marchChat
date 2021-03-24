@@ -12,6 +12,7 @@
 
 <?import javafx.scene.control.ListView?>
 <?import javafx.scene.control.ToggleButton?>
+<?import javafx.scene.control.PasswordField?>
 <VBox fx:controller="ru.geekbrains.march.chat.client.Controller"
 	  xmlns:fx="http://javafx.com/fxml"
 	  alignment="center">
@@ -35,6 +36,21 @@
 				text="Войти"/>
 	</HBox>
 
+	<!-- ================= Элементы управления для ввода пароля. ==================== -->
+	<HBox alignment="BASELINE_LEFT" fx:id="hboxPassword">
+
+		<VBox.margin><Insets top="5" bottom="2" right="5" left="5"/></VBox.margin>
+
+		<Text text="Введите пароль:"/>
+
+		<PasswordField fx:id="txtfieldPassword"
+					   HBox.hgrow="NEVER"
+					   onAction="#onactionLogin"
+					   promptText="Введите пароль здесь.">
+			<HBox.margin><Insets right="5" left="5"/></HBox.margin>
+		</PasswordField>
+
+	</HBox>
 	<!-- ================= TextArea и ListView ноходятся в этом поясе. ============== -->
 	<HBox VBox.vgrow="ALWAYS">
 
@@ -89,19 +105,20 @@
 			HBox.hgrow="NEVER"
 			selected="true"/>
 
-		<Button text="Статистика"
-			onAction="#onactionStat"
-			HBox.hgrow="NEVER"/>
+<!--		<Button text="Статистика"-->
+<!--			onAction="#onactionStat"-->
+<!--			HBox.hgrow="NEVER"/>-->
 
-		<Button text="Кто я"
-			onAction="#onactionWhoAmI"/>
+<!--		<Button text="Кто я"-->
+<!--			onAction="#onactionWhoAmI"/>-->
 
 		<ToggleButton text="Сменить ник"
 			fx:id="btnToolbarChangeNickname"
 			onAction="#onactionChangeNickname"/>
 
-		<Button text="Отправить"
+		<Button text="Отправить сообщение"
 			onAction="#onactionSendMessage"
+			maxWidth="Infinity"
 			HBox.hgrow="ALWAYS"/>
 	</HBox>
 

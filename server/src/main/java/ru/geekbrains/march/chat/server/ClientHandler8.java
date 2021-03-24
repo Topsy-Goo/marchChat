@@ -12,7 +12,7 @@ public class ClientHandler8
     private String clientName; //< После регистрации пользователя clientName == Controller.userName.
     private final int C2S_THREAD_SLEEPINTERVAL = 100,
                       IDLE_TIMER_INTERVAL = 120_000;
-    private int msgCounter = 0;
+    //private int msgCounter = 0;
     private boolean connectionGettingClosed = false;
 
     private Socket socket;
@@ -114,10 +114,10 @@ public class ClientHandler8
             {
                 connectionGettingClosed = true;
             }
-            else if (msg.equals (CMD_STAT)) // Клиент запросил статистику
-            {
-                syncSendMessageToClient (CMD_STAT, String.valueOf (msgCounter));
-            }
+            //else if (msg.equals (CMD_STAT)) // Клиент запросил статистику
+            //{
+            //    syncSendMessageToClient (CMD_STAT, String.valueOf (msgCounter));
+            //}
             else if (server != null) //< если сервер ещё не упал
             {
                 if (msg.equals (CMD_CLIENTS_LIST)) //< клиент запросил список участников чата
@@ -157,9 +157,8 @@ public class ClientHandler8
                         else throw new UnsupportedOperationException (
                                 "ERROR @ runThreadClientToServer() : незарегистрированное сообщение.");
 
-                        if (boolSent)  msgCounter++;
-                        else
-                        syncSendMessageToClient (CMD_ERROR, String.format (FORMAT_UNABLE_SEND_MESSAGE_TO, msg));
+                        if (!boolSent)
+                            syncSendMessageToClient (CMD_ERROR, String.format (FORMAT_UNABLE_SEND_MESSAGE_TO, msg));
                     }
                 }
             }

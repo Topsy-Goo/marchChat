@@ -5,15 +5,15 @@ import java.io.DataOutputStream;
 import java.io.IOException;
 import java.net.Socket;
 
-import static ru.geekbrains.march.chat.server.Server.*;
 import static ru.geekbrains.march.chat.server.ServerApp.*;
+import static ru.geekbrains.march.chat.server.ServerApp8.CMD_CLIENTS_LIST;
 
 public class ClientHandler
 {
-    private String clientName; //< После регистрации пользователя clientName == Controller.userName.
+    private String nickname; //< После регистрации пользователя clientName == Controller.userName.
     private final int C2S_THREAD_SLEEPINTERVAL = 100,
                       IDLE_TIMER_INTERVAL = 120_000;
-    private int msgCounter = 0;
+    //private int msgCounter = 0;
     private boolean connectionGettingClosed = false;
 
     private Socket socket;
@@ -27,11 +27,11 @@ public class ClientHandler
     private final static String
             CONNECTION_ESTABLISHED = "\nСоединение с сервером установлено."/*\nСервер ожидает регистрации пользователя.*/,
             CLIENT_CREATED = "клиент создан.",
-            ENTER_CHAT = "(вошёл в чат)",
-            FORMAT_RENAMING_TO_ = "(меняет имя на %s)",
-            LEFT_CHAT = "(покинул чат)",
             FORMAT_UNABLE_SEND_MESSAGE_TO = "Не удалось отправить сообщение:\n\t%s",
-            SERVER_OFF = "Сервер прекратил работу."
+            SERVER_OFF = "Сервер прекратил работу.",
+            MSG_LOGINERROR_BUSY = "Учётная запись в настоящий момент используется.",
+            MSG_LOGINERROR_INVALID = "Указаны некорректные логин и/или пароль.",
+            ENTER_CHAT = "(вошёл в чат)"
             ;
 
     public ClientHandler (Server serv, Socket serverSideSocket)
@@ -117,16 +117,11 @@ public class ClientHandler
                 connectionGettingClosed = true;
             }
             else
-            if (msg.equals (CMD_STAT)) // Клиент запросил статистику
-            {
-                syncSendMessageToClient (CMD_STAT, String.valueOf (msgCounter));
-            }
-            else
             if (server != null) //< если сервер ещё не упал
             {
                 if (msg.equals (CMD_CLIENTS_LIST)) //< клиент запросил список участников чата
                 {
-                    clientsListUpdate ();
+                    onCmdClientsList();
                 }
                 else
                 if (msg.equals (CMD_LOGIN)) // Клиент запросил регистрацию в чате
@@ -134,17 +129,17 @@ public class ClientHandler
                     onCmdLogin();
                 }
                 else
-                if (clientName != null) //< сообщения только для зарегистрированного клиента
+                if (nickname != null) //< сообщения только для зарегистрированного клиента
                 {
                     if (msg.equals (CMD_CHANGE_NICKNAME)) // Клиент запросил смену имени
                     {
                         onCmdChangeNickname();
                     }
-                    else
-                    if (msg.equals (CMD_WHOAMI)) // Клиент запросил соё имя
-                    {
-                        syncSendMessageToClient (CMD_WHOAMI, clientName);
-                    }
+                    //else
+                    //if (msg.equals (CMD_WHOAMI)) // Клиент запросил соё имя
+                    //{
+                    //    syncSendMessageToClient(CMD_WHOAMI, nickname);
+                    //}
                     else //сообщения, которые нужно считать:
                     {
                         boolean boolSent = false;
@@ -162,9 +157,8 @@ public class ClientHandler
                         else throw new UnsupportedOperationException (
                                 "ERROR @ runThreadClientToServer() : незарегистрированное сообщение.");
 
-                        if (boolSent)  msgCounter++;
-                        else
-                        syncSendMessageToClient(String.format (FORMAT_UNABLE_SEND_MESSAGE_TO, msg));
+                        if (!boolSent)
+                            syncSendMessageToClient(String.format (FORMAT_UNABLE_SEND_MESSAGE_TO, msg));
                     }
                 }
             }
@@ -175,46 +169,49 @@ public class ClientHandler
     }// runThreadClientToServer ()
 
 
+//Обработчик команды CMD_LOGIN.
+    private void onCmdLogin ()
+    {
+        if (nickname != null)
+            throw new RuntimeException("ERROR @ runThreadClientToServer() : повторная регистрация?");
+
+        //
+        nickname = server.syncValidateOnLogin (readInputStreamUTF(), readInputStreamUTF(), this);
+        if (nickname == null) //< null означает, что логин и/или пароль не прошли авторизацию
+        {
+            syncSendMessageToClient (CMD_BADNICKNAME, MSG_LOGINERROR_INVALID); //< Серверу не понравилось введённое пользователем имя.
+        }
+        else if (nickname.isEmpty()) //< пустая строка означает, что учётка кем-то используется
+        {
+            nickname = null;
+            syncSendMessageToClient (CMD_BADNICKNAME, MSG_LOGINERROR_BUSY);
+        }
+        else //< ok
+        {
+            syncSendMessageToClient (CMD_LOGIN, nickname);
+            //sendClientsList();
+            server.syncBroadcastMessage (ENTER_CHAT, this);
+        }
+
+    }// onCmdLogin ()
+
+
 //Обработчик команды CMD_CHANGE_NICKNAME.
     private void onCmdChangeNickname ()
     {
-        String name = readInputStreamUTF();
-        if (server.syncValidateUser (this, name, VALIDATE_AND_RENAME))
+        String newnickname = readInputStreamUTF();
+        if (server.syncChangeNickname (this, newnickname))
         {
-            server.syncBroadcastMessage (String.format (FORMAT_RENAMING_TO_, name), this);
-            clientName = name;
+            //server.syncBroadcastMessage (String.format (FORMAT_RENAMING_TO_, name), this);
+            nickname = newnickname;
             //server.onClientsListChanged();
-            syncSendMessageToClient (CMD_CHANGE_NICKNAME, clientName);
+            syncSendMessageToClient(CMD_CHANGE_NICKNAME, nickname);
         }
         else syncSendMessageToClient (CMD_BADNICKNAME);
     }// onCmdChangeNickname ()
 
-//Обработчик команды CMD_LOGIN.
-    private void onCmdLogin ()
-    {
-        if (clientName != null) throw new RuntimeException("ERROR @ runThreadClientToServer() : повторная регистрация?");
-
-        clientName = readInputStreamUTF(); //< Это немного преждевременно, но очень удобно --
-                                           // syncValidateUser() сможет вызвать onClientsListChanged().
-        if (server.syncValidateUser (this, clientName, VALIDATE_AND_ADD))
-        {
-            syncSendMessageToClient (CMD_LOGIN, clientName);
-            clientsListUpdate ();
-            server.syncBroadcastMessage (ENTER_CHAT, this);
-        }
-        else
-        {   clientName = null;
-            syncSendMessageToClient (CMD_BADNICKNAME); //< Серверу не понравилось введённое пользователем имя.
-        }
-    }// onCmdLogin ()
-
-//Обработчик команды .
-    private void onCmd ()
-    {
-    }// onCmd ()
-
 //Отсылаем клиенту новый список клиентов.
-    private void clientsListUpdate ()
+    private void sendClientsList ()
     {
         String[] clientslist = server.getClientsList();
         if (clientslist != null)
@@ -222,9 +219,21 @@ public class ClientHandler
             syncSendMessageToClient (CMD_CLIENTS_LIST);
             syncSendMessageToClient (String.valueOf (clientslist.length));
             syncSendMessageToClient (clientslist);
-            //syncSendMessageToClient (CMD_CLIENTS_LIST);
         }
-    }// clientsListUpdate ()
+    }// sendClientsList ()
+
+
+//Обработчик команды CMD_CLIENTS_LIST.
+    private void onCmdClientsList ()
+    {
+        String[] clientslist = server.getClientsList();
+        if (clientslist != null)
+        {
+            syncSendMessageToClient (CMD_CLIENTS_LIST);
+            syncSendMessageToClient (String.valueOf (clientslist.length));
+            syncSendMessageToClient (clientslist);
+        }
+    }// onCmdClientsList ()
 
 
 //(Вспомогательная.)
@@ -256,8 +265,8 @@ public class ClientHandler
         connectionGettingClosed = true;
         if (server != null)
         {
-            server.syncRemoveClient(this, MODE_UPDATE);
-            server.syncBroadcastMessage (LEFT_CHAT, this);
+            server.syncClientLogout(this);
+            //server.syncBroadcastMessage (LEFT_CHAT, this);
             server = null;
         }
         try
@@ -276,10 +285,11 @@ public class ClientHandler
             socket = null;
             dos = null;
             dis = null;
-            System.out.printf("\n(ClientHandler.close() : Клиент %s закрылся.)\n", clientName);
-            clientName = null;
+            System.out.printf ("\n(ClientHandler.close() : Клиент %s закрылся.)\n", nickname);
+            nickname = null;
         }
     }// close ()
+
 
 //Метод вызывается сервером (предположительно).
     public void onServerDown ()
@@ -290,6 +300,8 @@ public class ClientHandler
         close();
     }// onServerDown ()
 
-    public String getClientName ()  {   return clientName;  }
+
+    public String getClientName ()  {   return nickname;  }
+
 
 }// class ClientHandler

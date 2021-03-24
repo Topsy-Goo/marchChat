@@ -4,11 +4,12 @@ package ru.geekbrains.march.chat.server;
 public class ServerApp
 {
     public static final String
+            WNDTITLE_APPNAME = "March chat",
             CMD_CHAT_MSG = "/chat",
             CMD_PRIVATE_MSG = "/w",
             CMD_EXIT = "/exit",
-            CMD_STAT = "/stat",
-            CMD_WHOAMI = "/who_am_i",
+            //CMD_STAT = "/stat",
+            //CMD_WHOAMI = "/who_am_i",
             CMD_ONLINE = "/online",
             CMD_LOGIN = "/login",
             CMD_BADNICKNAME = "/login_bad",
@@ -24,7 +25,7 @@ public class ServerApp
 
     public static void main (String[] args)
     {
-        new Server(SERVER_PORT);
+        new Server (SERVER_PORT);
     // завершение работы с клиентом
         System.out.print (SERVER_IS_OFF);
 

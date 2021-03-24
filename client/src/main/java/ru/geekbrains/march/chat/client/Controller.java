@@ -26,21 +26,27 @@ public class Controller implements Initializable
             TXT_YOU_LOGED_IN_AS = "Вы вошли в чат как: ",
             FORMAT_TOYOU_PRIVATE_FROM = "\n[Вам приватно от %s]:\n\t%s",
             FORMAT_YOU_PRIVATE_TO = "\n[Приватно от Вас к %s]:\n\t%s",
+            PROMPT_TIPS_ON = "\nПодсказки включены.",
             PROMPT_UNABLE_TO_CONNECT = "\nНе удалось подключиться.",
             PROMPT_YOU_ARE_LOGED_OFF = "\nВы вышли из чата.",
             PROMPT_CONNECTION_LOST = "\nСоединение разорвано.",
-            ALERT_BAN_NICKNAME_SPECIFIED = "\nУказанное имя пользователя некорректно или уже используется.",
-            ALERT_UNABLE_TO_SEND_MESSAGE = "Не удадось отправить сообщение.",
             PROMPT_PRIVATE_MODE_IS_ON = "\n\nВы вошли в приватный режим. Ваши сообщения будут видны только выбранному собеседнику.",
             PROMPT_PRIVATE_MODE_IS_OFF = "\n\nВы вышли из приватного режима. Ваши сообщения будут видны всем участникам чата.",
-            ALERT_ADDRESSEE_NOTSELECTED = "Не выбран получатель приватного сообщения.\nВыберите получателя сообщения в списке участников чата и попробуйте снова.",
             PROMPT_STATISTICS = "\nсообщений = ",
             PROMPT_CHANGE_NICKNAME = "\n\nОправьте новое имя как сообщение. Чат-сервер присвоит его Вам, если это" +
                                      " возможно.\n\nДля выхода из режима смены имени нажмите кнопку «Сменить ник» ещё раз.\n",
+            ALERT_TITLE = WNDTITLE_APPNAME,
+            ALERT_HEADER_BAD_NICKNAME = "Некорректное имя пользователя",
+            ALERT_HEADER_LOGINERROR = "Ошибка авторизации.",
+            ALERT_HEADER_ERROR = "Ошибка!",
+            ALERT_HEADER_ADDRESSEE = "Не выбран получатель сообщения.",
+            ALERT_HEADER_EMPTY_MESSAGE = "Пустое сообщение",
+            ALERT_HEADER_NICKNAME_CHANGING = "Смена имени в чате.",
+            ALERT_BAN_NICKNAME_SPECIFIED = "\nУказанное имя пользователя некорректно или уже используется.",
+            ALERT_UNABLE_TO_SEND_MESSAGE = "Не удадось отправить сообщение.",
+            ALERT_ADDRESSEE_NOTSELECTED = "Выберите получателя сообщения в списке участников чата и попробуйте снова.",
             ALERT_EMPTY_MESSAGE = "Введённое сообщение пустое или содержит только пробельные символы.",
-            ALERT_CONFIRM_NEW_NICKNAME = "Подтвердите смену вашего имени. Новое имя:\n%s",
-            PROMP_TIPS_ON = "\nПодсказки включены."
-            ;
+            ALERT_CONFIRM_NEW_NICKNAME = "Подтвердите смену вашего имени. Новое имя:\n%s"            ;
 
     private final static boolean
                 CAN_CHAT  = true, CANNOT_CHAT   = !CAN_CHAT,
@@ -56,7 +62,7 @@ public class Controller implements Initializable
     private Socket clientSideSocket;
     private DataInputStream dis;
     private DataOutputStream dos;
-    private String userName;
+    private String nickname;
     private Thread threadIntputStream,
                    threadParent;
     private boolean appGettingOff = false,
@@ -67,8 +73,11 @@ public class Controller implements Initializable
 
     @FXML TextArea txtareaMessages;
     @FXML TextField txtfieldUsernameField, txtfieldMessage;
+    @FXML PasswordField txtfieldPassword;
     @FXML Button buttonLogin;
-    @FXML HBox hboxMessagePanel, hboxToolbar;
+    @FXML HBox hboxMessagePanel,
+               hboxPassword,
+               hboxToolbar;
     @FXML ToggleButton btnToolbarPrivate,
                        btnToolbarChangeNickname,
                        btnToolbarTips;
@@ -82,7 +91,6 @@ public class Controller implements Initializable
     {
         threadParent = Thread.currentThread();
         updateUserInterface (CANNOT_CHAT);
-
     }// initialize ()
 
 
@@ -99,7 +107,7 @@ public class Controller implements Initializable
             if (canChat == CAN_CHAT)
             {
                 txtIntroduction.setText (TXT_YOU_LOGED_IN_AS);
-                txtfieldUsernameField.setText (userName);
+                txtfieldUsernameField.setText(nickname);
                 txtfieldMessage.requestFocus();
             }
             else
@@ -108,6 +116,8 @@ public class Controller implements Initializable
                 listviewClients.getItems().clear();
                 txtfieldUsernameField.requestFocus();
             }
+            hboxPassword.setManaged (canChat != CAN_CHAT);
+            hboxPassword.setVisible (canChat != CAN_CHAT);
             hboxMessagePanel.setManaged (canChat == CAN_CHAT);
             hboxMessagePanel.setVisible (canChat == CAN_CHAT);
             hboxToolbar.setManaged (canChat == CAN_CHAT);
@@ -135,7 +145,7 @@ public class Controller implements Initializable
         }
         catch (IOException ioe)
         {
-            txtareaMessages.appendText(PROMPT_UNABLE_TO_CONNECT);
+            onCmdExit (PROMPT_UNABLE_TO_CONNECT);
             ioe.printStackTrace();
         }
         syncSendMessageToServer(CMD_CLIENTS_LIST);
@@ -145,8 +155,6 @@ public class Controller implements Initializable
 // интерфейс (чтобы юзер не мог пользоваться чатом).
     private void disconnect ()
     {
-        updateUserInterface(CANNOT_CHAT);
-        txtareaMessages.appendText(PROMPT_YOU_ARE_LOGED_OFF);
 
         if (clientSideSocket != null && !clientSideSocket.isClosed())
             try{
@@ -192,19 +200,19 @@ public class Controller implements Initializable
                 }
             }
         }
-        catch (IOException e)
+        catch (IOException | InterruptedException e)
         {
-            txtareaMessages.appendText(PROMPT_CONNECTION_LOST);
+            onCmdExit (PROMPT_CONNECTION_LOST);
             e.printStackTrace();
         }
-        catch (InterruptedException e) {e.printStackTrace();}
         return msg;
     }// readInputStreamUTF ()
 
 
     private void runTreadInputStream ()
     {
-        String msg;
+        String  msg;
+
         while (!appGettingOff && (msg = readInputStreamUTF()) != null)
         {
     //  Чтобы войти в чат, пользователь должен ввести непустое уникальное (для чата) имя.
@@ -222,46 +230,98 @@ public class Controller implements Initializable
 
             switch (msg.toLowerCase())
             {
-                case CMD_CHAT_MSG:    txtareaMessages.appendText ('\n'+ readInputStreamUTF());
+                case CMD_CHAT_MSG:  onCmdChatMsg (readInputStreamUTF());
                     break;
-                case CMD_CLIENTS_LIST_CHANGED:  syncSendMessageToServer(CMD_CLIENTS_LIST);
+                case CMD_CLIENTS_LIST_CHANGED:  syncSendMessageToServer (CMD_CLIENTS_LIST);
                     break;
                 case CMD_CLIENTS_LIST:  onCmdClientsList();
                     break;
-                case CMD_LOGIN:  //Сервер одобрил отправленное ему имя пользователя.
-                    userName = readInputStreamUTF();
-                    loginState = LOGED_IN;
-                    updateUserInterface (CAN_CHAT);
+                case CMD_LOGIN:   onCmdLogIn ();
                     break;
-                case CMD_CHANGE_NICKNAME: //Сервер одобрил отправленное ему имя пользователя.
-                    userName = readInputStreamUTF();
-                    txtfieldUsernameField.setText (userName);
-                    onactionChangeNickname();
-                    syncSendMessageToServer (CMD_CLIENTS_LIST);
+                case CMD_CHANGE_NICKNAME:   onCmdChangeNickname();
                     break;
-                case CMD_BADNICKNAME:   //Это сообщение можем получить при регистрации и при смене имени.
-                    alertWarning(ALERT_BAN_NICKNAME_SPECIFIED);
+                case CMD_BADNICKNAME:   onCmdBadNickname();  //можем получить при регистрации и при смене имени.
                     break;
-                case CMD_EXIT:  onactionLogout (DONTSEND_EXIT);
+                case CMD_EXIT:   onCmdExit (PROMPT_YOU_ARE_LOGED_OFF);
                     break;
-                case CMD_STAT:  txtareaMessages.appendText(PROMPT_STATISTICS + readInputStreamUTF());
+                case CMD_PRIVATE_MSG:   onCmdPrivateMsg (readInputStreamUTF(), readInputStreamUTF());
                     break;
-                case CMD_PRIVATE_MSG:
-                    txtareaMessages.appendText (String.format (FORMAT_TOYOU_PRIVATE_FROM,
-                            readInputStreamUTF(),
-                            readInputStreamUTF()));
-                    break;
-                case CMD_WHOAMI:  txtareaMessages.appendText ("\n "+ TXT_YOU_LOGED_IN_AS + readInputStreamUTF());
-                    break;
-                default:
-                    throw new UnsupportedOperationException (
-                            "ERROR @ runTreadInputStream() : незарегистрированное сообщение:\n\t" + msg);
+                default:   throw new UnsupportedOperationException (
+                              "ERROR @ runTreadInputStream() : незарегистрированное сообщение:\n\t" + msg);
             }
         }//while
         disconnect();
     }// runTreadInputStream ()
 
+// Обработчик команды CMD_PRIVATE_MSG.
+    void onCmdPrivateMsg (String from, String msg)
+    {
+        Platform.runLater(()->{
+            txtareaMessages.appendText (String.format (FORMAT_TOYOU_PRIVATE_FROM, from, msg));
+        });
+    }//
 
+// Обработчик команды CMD_CHAT_MSG.
+    void onCmdChatMsg (String msg)
+    {
+        Platform.runLater(()->{
+            txtareaMessages.appendText ('\n'+ msg);
+        });
+    }// onCmdChatMsg ()
+
+// Обработчик команды CMD_BADNICKNAME. В качестве параметра в метод передаётся строка, которая будет выведена
+// в окно чата. Сообщение от сервера будет
+    void onCmdBadNickname ()
+    {
+        alertWarning (ALERT_HEADER_LOGINERROR, readInputStreamUTF());
+        onCmdExit (PROMPT_CONNECTION_LOST);
+    }// onCmdBadNickname ()
+
+
+// Обработчик команды CMD_EXIT (также вызывается из onactionLogin() при нажатии кнопки Вход/Выход).
+    private void onCmdExit (String prompt)
+    {
+        appGettingOff = true;
+        loginState = LOGED_OFF;
+        Platform.runLater(()->{
+            txtareaMessages.appendText (prompt);
+        });
+        updateUserInterface (CANNOT_CHAT);
+
+/*  Вообще всесь процесс выхода заключается в трёх действиях:
+    - отправка сообщения CMD_EXIT на сервер (при необходимости; например, при выходе по кнопке);
+    - изменение некоторых переменных (выполняется здесь, в этом методе);
+    - вызов disconnect().
+*/
+    }// onCmdExit ()
+
+
+// Обработчик команды CMD_LOGIN (сообщение приходит в случае успешной авторизации).
+    void onCmdLogIn ()
+    {
+        nickname = readInputStreamUTF();
+        loginState = LOGED_IN;
+        updateUserInterface (CAN_CHAT);
+        System.out.printf("\n\t%s подключен.", nickname); //< для отладки
+    }// onCmdLogIn ()
+
+// Обработчик команды CMD_CHANGE_NICKNAME
+    private void onCmdChangeNickname ()
+    {
+        nickname = readInputStreamUTF();
+        Platform.runLater(()->{
+            txtfieldUsernameField.setText (nickname);
+            onactionChangeNickname();   //< Отщёлкиваем кнопку «Сменить имя» в исходное состояние.
+            // перед отправкой запроса на сервер мы оставили имя в поле ввода. Теперь
+            // пришло время его убрать оттуда:
+            txtfieldMessage.clear();
+            txtfieldMessage.requestFocus();
+        });
+        //syncSendMessageToServer (CMD_CLIENTS_LIST);
+        System.out.printf ("\n\tпоменял имя на %s", nickname); //< для отладки
+    }// onCmdChangeNickname ()
+
+// Обработчик команды CMD_CLIENTS_LIST
     private void onCmdClientsList ()
     {
         int size = Integer.parseInt (readInputStreamUTF());
@@ -278,46 +338,42 @@ public class Controller implements Initializable
     }// onCmdClientsList ()
 
 
-// Обработка ввода пользователем своего имени для чата.
+// Обработка ввода пользователем своего имени для чата (метод вызывается по нажатию кнопки «Вход/Выход»).
     public void onactionLogin (ActionEvent actionEvent)
     {
-        Platform.runLater(()->{
+        //Platform.runLater(()->{
             if (loginState == LOGED_OFF)
             {
-                String name = txtfieldUsernameField.getText().trim();
-                if (name.isEmpty())
+                String login = txtfieldUsernameField.getText(),
+                       password = txtfieldPassword.getText();
+
+                boolean badLogin = login == null || login.isEmpty();
+
+                if (badLogin || password == null || password.isEmpty())
                 {
-                    alertWarning("\nВведите другое имя пользователя.");
-                    txtfieldUsernameField.requestFocus();
+                    alertWarning(ALERT_HEADER_BAD_NICKNAME, ALERT_BAN_NICKNAME_SPECIFIED);
+                    if (badLogin)   txtfieldUsernameField.requestFocus();
+                    else            txtfieldPassword.requestFocus();
                 }
                 else
-                {   userName = name;
-                    connect();  //< На данном этапе развития чата удобно сперва запрашивать
-                                //  у пользователя его имя, а потом подключаться к серверу.
-                    syncSendMessageToServer(CMD_LOGIN, userName);
+                {   connect();
+                    syncSendMessageToServer (CMD_LOGIN, login, password);
                 }
             }
-            else onactionLogout (SEND_EXIT); //Кнопка «Войти» используется и для выхода из чата.
-        });
+            else //Кнопка «Войти» используется и для выхода из чата.
+            {
+            //Этот метод может быть вызван из runTreadInputStream() как реакция на приход сообщения /exit от сервера.
+            //    if (sendExitMessage == SEND_EXIT)
+                    syncSendMessageToServer (CMD_EXIT);
+
+                onCmdExit (PROMPT_YOU_ARE_LOGED_OFF);
+                //if (threadIntputStream == null)     //а если потока нет, то disconnect() вызывается здесь.
+                //{
+                    disconnect ();
+                //}
+            }
+        //});
     }// onactionLogin ()
-
-
-//Обрабатываем команду выхода из чата (по кнопке, по команде и по приходу сообщения от сервера).
-    private void onactionLogout (boolean sendExitMessage)
-    {
-    //Этот метод может быть вызван из runTreadInputStream() как реакция на приход сообщения /exit от сервера.
-        if (sendExitMessage == SEND_EXIT)
-            syncSendMessageToServer(CMD_EXIT);
-
-        loginState = LOGED_OFF;
-    //при нормальном течении событий disconnect() вызовется из потока threadIntputStream в самом конце.
-        appGettingOff = true;
-        if (threadIntputStream == null)     //а если потока нет, то disconnect() вызывается здесь.
-        {
-//System.out.print ("\nonactionLogout() / вызываем disconnect()");
-            disconnect();
-        }
-    }// onactionLogout ()
 
 
 //Обработка вводимых пользователем сообщений. (У пользователя нет возможности вводить команды руками, —
@@ -330,14 +386,14 @@ public class Controller implements Initializable
 
             if (msg == null || msg.trim().isEmpty())
             {
-                if (tipsMode == TIPS_ON)   alertWarning (ALERT_EMPTY_MESSAGE);
+                if (tipsMode == TIPS_ON)   alertWarning (ALERT_HEADER_EMPTY_MESSAGE, ALERT_EMPTY_MESSAGE);
             }
             else
             if (changeNicknameMode == MODE_CHANGE_NICKNAME) //< Будем считать этот режим более сильным, чем режим privateMode
             {
                 String message = String.format (ALERT_CONFIRM_NEW_NICKNAME, msg);
-                if (alertConfirmationYesNo (message) == ANSWER_YES)
-                    boolSent = syncSendMessageToServer (CMD_CHANGE_NICKNAME, msg);
+                if (alertConfirmationYesNo (ALERT_HEADER_NICKNAME_CHANGING, message) == ANSWER_YES)
+                    syncSendMessageToServer (CMD_CHANGE_NICKNAME, msg);
             }
             else
             if (privateMode == MODE_PRIVATE)
@@ -346,18 +402,18 @@ public class Controller implements Initializable
             //участников чата.
                 String name = listviewClients.getSelectionModel().getSelectedItem();
                 if (name == null || name.isEmpty())
-                    alertWarning(ALERT_ADDRESSEE_NOTSELECTED); //< если получатель не выбран
+                    alertWarning (ALERT_HEADER_ADDRESSEE, ALERT_ADDRESSEE_NOTSELECTED); //< если получатель не выбран
                 else
                 {
                     boolSent = syncSendMessageToServer(CMD_PRIVATE_MSG, name, msg);
                     txtareaMessages.appendText (String.format (FORMAT_YOU_PRIVATE_TO, name, msg));
                 }
             }
-            else boolSent = syncSendMessageToServer(CMD_CHAT_MSG, msg);
+            else boolSent = syncSendMessageToServer (CMD_CHAT_MSG, msg);
 
             if (boolSent)
             {
-                txtfieldMessage.clear();;
+                txtfieldMessage.clear();
                 txtfieldMessage.requestFocus();
             }
         //});
@@ -375,12 +431,12 @@ public class Controller implements Initializable
                 dos.writeUTF(msg);
             boolSent = true;
         }
-        catch (IOException e) { alertWarning(ALERT_UNABLE_TO_SEND_MESSAGE); }
+        catch (IOException e) { alertWarning (ALERT_HEADER_ERROR, ALERT_UNABLE_TO_SEND_MESSAGE); }
         return boolSent;
     }// syncSendMessageToServer ()
 
 
-    @Override public String toString() { return "Controller : "+ userName; }
+    @Override public String toString() { return "Controller : "+ nickname; }
 
     public void onactionTogglePrivateMode ()
     {
@@ -390,29 +446,33 @@ public class Controller implements Initializable
             txtareaMessages.appendText (privateMode ? PROMPT_PRIVATE_MODE_IS_ON : PROMPT_PRIVATE_MODE_IS_OFF);
     }
 
-    public void onactionStat () {   syncSendMessageToServer(CMD_STAT);   }
-    public void onactionWhoAmI ()   {   syncSendMessageToServer(CMD_WHOAMI);   }
-
     public void onactionChangeNickname ()
     {
         changeNicknameMode = !changeNicknameMode;
         btnToolbarChangeNickname.setSelected (changeNicknameMode);
         if (changeNicknameMode == MODE_CHANGE_NICKNAME && tipsMode == TIPS_ON)
             txtareaMessages.appendText (PROMPT_CHANGE_NICKNAME);
-    }
+    }// onactionChangeNickname ()
 
-    public static void alertWarning (String msg)
+    public static void alertWarning (String header, String msg)
     {
         if (msg != null)
+        {
             Platform.runLater(()->{
-                new Alert (Alert.AlertType.WARNING, msg, ButtonType.CLOSE).showAndWait();
+                Alert a = new Alert (Alert.AlertType.WARNING, msg, ButtonType.CLOSE);
+                a.setTitle (ALERT_TITLE);
+                a.setHeaderText (header);
+                a.showAndWait();
             });
+        }
     }// alertWarning ()
 
-    public static boolean alertConfirmationYesNo (String message)
+    public static boolean alertConfirmationYesNo (String header, String message)
     {
         boolean boolYes = ANSWER_NO;
         Alert a = new Alert (Alert.AlertType.CONFIRMATION, message, ButtonType.YES, ButtonType.NO);
+        a.setHeaderText (header);
+        a.setTitle (ALERT_TITLE);
         Optional<ButtonType> option = a.showAndWait();
 
         //Боже! Как всё непросто!.. Надеюсь, я просто что-то не так делаю…
@@ -426,8 +486,8 @@ public class Controller implements Initializable
     {
         tipsMode = !tipsMode;
         if (tipsMode == TIPS_ON)
-            txtareaMessages.appendText (PROMP_TIPS_ON);
-    }
+            txtareaMessages.appendText (PROMPT_TIPS_ON);
+    }// onactionTips ()
 
 
 }// class Controller

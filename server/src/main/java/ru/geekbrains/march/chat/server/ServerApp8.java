@@ -6,7 +6,7 @@ public class ServerApp8
             CMD_CHAT_MSG = "/chat",
             CMD_PRIVATE_MSG = "/w",
             CMD_EXIT = "/exit",
-            CMD_STAT = "/stat",
+            //CMD_STAT = "/stat",
             CMD_WHOAMI = "/who_am_i",
             CMD_ONLINE = "/online",
             CMD_LOGIN = "/login",

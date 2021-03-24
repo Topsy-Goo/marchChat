@@ -57,7 +57,7 @@ public class Controller8 implements Initializable
     private Socket clientSideSocket;
     private DataInputStream dis;
     private DataOutputStream dos;
-    private String userName;
+    private String nickname;
     private Thread threadIntputStream,
                    threadParent;
     private boolean appGettingOff = false,
@@ -68,12 +68,12 @@ public class Controller8 implements Initializable
 
     @FXML TextArea txtareaMessages;
     @FXML TextField txtfieldUsername,
-                    txtfieldPassword,
                     txtfieldMessage;
+    @FXML PasswordField txtfieldPassword;
     @FXML Button buttonLogin;
     @FXML HBox hboxPassword,
-                hboxMessagePanel,
-                hboxToolbar;
+               hboxMessagePanel,
+               hboxToolbar;
     @FXML ToggleButton btnToolbarPrivate,
                        btnToolbarChangeNickname,
                        btnToolbarTips;
@@ -103,7 +103,7 @@ public class Controller8 implements Initializable
             if (canChat == CAN_CHAT)
             {
                 txtIntroduction.setText (TXT_YOU_LOGED_IN_AS);
-                txtfieldUsername.setText(userName);
+                txtfieldUsername.setText(nickname);
                 txtfieldMessage.requestFocus();
             }
             else
@@ -162,7 +162,7 @@ public class Controller8 implements Initializable
         dis = null;
         dos = null;
         threadIntputStream = null;
-        System.out.println ("\n\t"+userName+" отключен"); //< для отладки
+        System.out.println("\n\t"+ nickname +" отключен"); //< для отладки
     }// disconnect ()
 
 
@@ -244,8 +244,8 @@ public class Controller8 implements Initializable
                     break;
                 case CMD_EXIT:  onactionLogout (DONTSEND_EXIT);
                     break;
-                case CMD_STAT:  txtareaMessages.appendText(PROMPT_STATISTICS + readInputStreamUTF());
-                    break;
+                //case CMD_STAT:  txtareaMessages.appendText(PROMPT_STATISTICS + readInputStreamUTF());
+                //    break;
                 case CMD_PRIVATE_MSG:
                     txtareaMessages.appendText (String.format (FORMAT_TOYOU_PRIVATE_FROM,
                             readInputStreamUTF(),
@@ -266,18 +266,18 @@ public class Controller8 implements Initializable
 // Обработчик команды CMD_LOGIN
     void onCmdLogIn ()
     {
-        userName = readInputStreamUTF();
-        System.out.println ("\n\t"+userName+" подключен"); //< для отладки
+        nickname = readInputStreamUTF();
         loginState = LOGED_IN;
         updateUserInterface (CAN_CHAT);
+        System.out.printf("\n\t%s подключен.", nickname); //< для отладки
     }// onCmdLogIn ()
 
 // Обработчик команды CMD_CHANGE_NICKNAME.
     private void onCmdChangeNickname ()
     {
-        userName = readInputStreamUTF();
-        System.out.println ("\n\tсменил ник на "+userName); //< для отладки
-        txtfieldUsername.setText(userName);
+        nickname = readInputStreamUTF();
+        System.out.println("\n\tсменил ник на "+ nickname); //< для отладки
+        txtfieldUsername.setText(nickname);
         onactionChangeNickname();
         syncSendMessageToServer (CMD_CLIENTS_LIST);
     }// onCmdChangeNickname ()
@@ -308,10 +308,13 @@ public class Controller8 implements Initializable
                 String  login = txtfieldUsername.getText(),
                         password = txtfieldPassword.getText();
 
-                if (login == null || password == null || login.isEmpty() || password.isEmpty())
+                boolean badLogin = login == null || login.isEmpty();
+
+                if (badLogin || password == null || password.isEmpty())
                 {
                     alertWarning (ALERT_INCORRECT_LOGIN_PASSWORD);
-                    txtfieldUsername.requestFocus();
+                    if (badLogin)   txtfieldUsername.requestFocus();
+                    else            txtfieldPassword.requestFocus();
                 }
                 else
                 {   connect();
@@ -396,7 +399,7 @@ public class Controller8 implements Initializable
     }// syncSendMessageToServer ()
 
 
-    @Override public String toString() { return "Controller : "+ userName; }
+    @Override public String toString() { return "Controller : "+ nickname; }
 
 //Переключение режима чата приватный/публичный.
     public void onactionTogglePrivateMode ()
@@ -407,8 +410,8 @@ public class Controller8 implements Initializable
             txtareaMessages.appendText (privateMode ? PROMPT_PRIVATE_MODE_IS_ON : PROMPT_PRIVATE_MODE_IS_OFF);
     }
 
-    public void onactionStat () {   syncSendMessageToServer (CMD_STAT);   }
-    public void onactionWhoAmI ()   {   syncSendMessageToServer (CMD_WHOAMI);   }
+    //public void onactionStat () {   syncSendMessageToServer (CMD_STAT);   }
+    //public void onactionWhoAmI ()   {   syncSendMessageToServer (CMD_WHOAMI);   }
 
 //Включение/выключение режима смены имени.
     public void onactionChangeNickname ()

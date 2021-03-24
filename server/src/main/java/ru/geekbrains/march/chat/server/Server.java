@@ -14,14 +14,16 @@ public class Server
             SERVERNAME_BASE_ = "ЧатСервер_",
             SESSION_START = "\nНачало сессии.",
             WAITING_FOR_CLIENTS = "\n\tЖдём подклюение клиента... ",
-            UNABLE_TOCREATE_HANDLER = "\nНе удалось создать ClientHandler."
+            UNABLE_TOCREATE_HANDLER = "\nНе удалось создать ClientHandler.",
+            FORMAT_RENAMING_TO_ = "(меняет имя на %s)",
+            LEFT_CHAT = "(покинул чат)"
             ;
     private static int serverNameCounter = 0;
     public static final int PORT_MAX = 65535;
     public static final int PORT_MIN = 0;
-    public static final boolean
-                VALIDATE_AND_ADD = true, VALIDATE_AND_RENAME = !VALIDATE_AND_ADD,
-                MODE_UPDATE = true, MODE_SILENT = !MODE_UPDATE;
+    //public static final boolean
+    //            VALIDATE_AND_ADD = true, VALIDATE_AND_RENAME = !VALIDATE_AND_ADD,
+    //            MODE_UPDATE = true, MODE_SILENT = !MODE_UPDATE;
     private final String SERVERNAME;
 
     private final int CONSOLE_THREAD_SLEEPINTERVAL = 250;
@@ -32,6 +34,7 @@ public class Server
     private Thread threadConsoleToClient;
     private final Thread threadMain;
     private boolean serverGettingOff = false;
+    private final Authentificator authentor;
 
 
     public Server (int port)
@@ -39,7 +42,13 @@ public class Server
         if (port < PORT_MIN || port > PORT_MAX)    throw new IllegalArgumentException();
 
         map = new HashMap<>();
-        syncPublicUpdateClientsList();
+        authentor = new AuthentificationProvider (0);
+            authentor.add("1", "11", "u1111");
+            authentor.add("2", "22", "u2222");
+            authentor.add("3", "33", "u3333");
+            authentor.add("4", "44", "u4444");
+
+        syncUpdatePublicClientsList();
         this.port = port;
         threadMain = Thread.currentThread();
         SERVERNAME = SERVERNAME_BASE_ + serverNameCounter ++;
@@ -172,47 +181,82 @@ public class Server
 
 
 //Проверяем имя клиента на уникальность и при необходимости добавляем его в список подключенных клиентов.
-    public synchronized boolean syncValidateUser (ClientHandler client, String newname, boolean add)
+    public synchronized String syncValidateOnLogin (String login, String password, ClientHandler client)
+    {
+        String nick = authentor.authenticate(login, password);
+
+        //boolean boolOk = false;
+        //if (newname != null && !newname.isEmpty() &&
+        //    map != null && !map.containsKey(newname))
+        //{
+        //    if (add == VALIDATE_AND_RENAME)
+        //        syncRemoveClient (client, MODE_SILENT);
+        //        // (Здесь мы вносим изменения в список клиентов, а завершат переименование
+        //        // клиента ClientHandler и Controller.)
+        //
+        //    boolOk = true;
+        //}
+        if (nick != null)
+        {
+            if (map.containsKey (nick))
+            {
+                nick = ""; //< так будет выглядеть индикатор повторного входа в чат
+            }
+            else
+            {
+                map.put (nick, client);
+                syncUpdatePublicClientsList();
+                syncBroadcastMessage (CMD_CLIENTS_LIST_CHANGED, null);
+                //syncBroadcastMessage (ENTER_CHAT, client); < сейчас у клиента nickname == null
+            }
+        }
+        return nick;
+    }// syncValidateOnLogin ()
+
+
+//Клиент запросил смену имени.
+    public synchronized boolean syncChangeNickname (ClientHandler client, String newnickname)
     {
         boolean boolOk = false;
-        if (newname != null && !newname.isEmpty() &&
-            map != null && !map.containsKey(newname))
+        if (client != null)
         {
-            if (add == VALIDATE_AND_RENAME)
-                syncRemoveClient (client, MODE_SILENT);
-                // (Здесь мы вносим изменения в список клиентов, а завершат переименование
-                // клиента ClientHandler и Controller.)
-
-            map.put (newname, client);
-            boolOk = true;
-            syncPublicUpdateClientsList();
-            syncBroadcastMessage (CMD_CLIENTS_LIST_CHANGED, null);
+            String prevname = client.getClientName();
+            if (authentor.rename(prevname, newnickname))
+            {
+                map.remove (prevname);
+                map.put (newnickname, client);
+                syncUpdatePublicClientsList();
+                syncBroadcastMessage (CMD_CLIENTS_LIST_CHANGED, null);
+                syncBroadcastMessage (String.format (FORMAT_RENAMING_TO_, newnickname), client);
+                boolOk = true;
+            }
         }
         return boolOk;
-    }// syncValidateUser ()
+    }// syncChangeNickname ()
 
 
 //Удаляем клиента из списка подключенных клиентов.
-    public synchronized void syncRemoveClient (ClientHandler client, boolean mode)
+    public synchronized void syncClientLogout (ClientHandler client)
     {
-        if (client != null  &&  map.remove(client.getClientName()) != null)
+        if (client != null  &&  map.remove (client.getClientName()) != null)
         {
-            syncPublicUpdateClientsList();
-            if (mode == MODE_UPDATE)
+            syncUpdatePublicClientsList();
+            //if (mode == MODE_UPDATE)
+            {
                 syncBroadcastMessage (CMD_CLIENTS_LIST_CHANGED, null);
+                syncBroadcastMessage (LEFT_CHAT, client);
+            }
         }
-    }// syncRemoveClient ()
+    }// syncClientLogout ()
 
 
 //В списке клиентов произошли изменения (добавление, удаление, переименование; также вызывается из конструктора).
 // Составляем список имён участников чата для рассылки этим самым участникам.
-    private synchronized void syncPublicUpdateClientsList ()
+    private synchronized void syncUpdatePublicClientsList ()
     {
         if (map != null)
-        {
-            publicCliendsList = map.keySet().toArray(new String[0]);
-        }
-    }// syncPublicUpdateClientsList ()
+            publicCliendsList = map.keySet().toArray (new String[0]);
+    }// syncUpdatePublicClientsList ()
 
 
 //Рассылаем указанное сообщение всем клиентам из нашего списка подключенных клиентов.
