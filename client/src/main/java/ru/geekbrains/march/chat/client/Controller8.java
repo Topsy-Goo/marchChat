@@ -143,7 +143,6 @@ public class Controller8 implements Initializable
             txtareaMessages.appendText(PROMPT_UNABLE_TO_CONNECT);
             ioe.printStackTrace();
         }
-        syncSendMessageToServer(CMD_CLIENTS_LIST);
     }// connect ()
 
 //Закрытие сокета и обнуление связанных с ним переменных. + Внесение изменений в
@@ -269,6 +268,7 @@ public class Controller8 implements Initializable
         nickname = readInputStreamUTF();
         loginState = LOGED_IN;
         updateUserInterface (CAN_CHAT);
+        syncSendMessageToServer (CMD_CLIENTS_LIST);
         System.out.printf("\n\t%s подключен.", nickname); //< для отладки
     }// onCmdLogIn ()
 
@@ -299,8 +299,23 @@ public class Controller8 implements Initializable
     }// onCmdClientsList ()
 
 
+//(Вспомогательный метод.) Шлём на сервер строки отдельными сообщениями.
+    private synchronized boolean syncSendMessageToServer (String ... lines)
+    {
+        boolean boolSent = false;
+        if (lines != null  &&  lines.length > 0  &&  dos != null)
+        try
+        {   for (String msg : lines)
+                dos.writeUTF(msg);
+            boolSent = true;
+        }
+        catch (IOException e) { alertWarning (ALERT_UNABLE_TO_SEND_MESSAGE); }
+        return boolSent;
+    }// syncSendMessageToServer ()
+
+
 // Обработка ввода пользователем своего имени для чата.
-    public void onactionLogin (ActionEvent actionEvent)
+    @FXML public void onactionLogin (ActionEvent actionEvent)
     {
         Platform.runLater(()->{
             if (loginState == LOGED_OFF)
@@ -384,25 +399,8 @@ public class Controller8 implements Initializable
     }// onactionSendMessage ()
 
 
-//(Вспомогательный метод.) Шлём на сервер строки отдельными сообщениями.
-    private synchronized boolean syncSendMessageToServer (String ... lines)
-    {
-        boolean boolSent = false;
-        if (lines != null  &&  lines.length > 0  &&  dos != null)
-        try
-        {   for (String msg : lines)
-                dos.writeUTF(msg);
-            boolSent = true;
-        }
-        catch (IOException e) { alertWarning (ALERT_UNABLE_TO_SEND_MESSAGE); }
-        return boolSent;
-    }// syncSendMessageToServer ()
-
-
-    @Override public String toString() { return "Controller : "+ nickname; }
-
 //Переключение режима чата приватный/публичный.
-    public void onactionTogglePrivateMode ()
+    @FXML public void onactionTogglePrivateMode ()
     {
         privateMode = !privateMode;
         btnToolbarPrivate.setSelected (privateMode);
@@ -410,17 +408,27 @@ public class Controller8 implements Initializable
             txtareaMessages.appendText (privateMode ? PROMPT_PRIVATE_MODE_IS_ON : PROMPT_PRIVATE_MODE_IS_OFF);
     }
 
-    //public void onactionStat () {   syncSendMessageToServer (CMD_STAT);   }
-    //public void onactionWhoAmI ()   {   syncSendMessageToServer (CMD_WHOAMI);   }
-
 //Включение/выключение режима смены имени.
-    public void onactionChangeNickname ()
+    @FXML public void onactionChangeNickname ()
     {
         changeNicknameMode = !changeNicknameMode;
         btnToolbarChangeNickname.setSelected (changeNicknameMode);
         if (changeNicknameMode == MODE_CHANGE_NICKNAME && tipsMode == TIPS_ON)
             txtareaMessages.appendText (PROMPT_CHANGE_NICKNAME);
     }
+
+//Включение/выключение некоторых сообщений и предупреждений, чтобы они не замусоривали окно чата,
+// когда юзер разобрался с интерфейсом.
+    @FXML public void onactionTips ()
+    {
+        tipsMode = !tipsMode;
+        if (tipsMode == TIPS_ON)
+            txtareaMessages.appendText (PROMP_TIPS_ON);
+    }
+
+
+    //public void onactionStat () {   syncSendMessageToServer (CMD_STAT);   }
+    //public void onactionWhoAmI ()   {   syncSendMessageToServer (CMD_WHOAMI);   }
 
 //Вывод предупреждения в отдельном окне.
     public static void alertWarning (String msg)
@@ -446,14 +454,7 @@ public class Controller8 implements Initializable
         return boolYes;
     }// alertConfirmationYesNo ()
 
-//Включение/выключение некоторых сообщений и предупреждений, чтобы они не замусоривали окно чата,
-// когда юзер разобрался с интерфейсом.
-    public void onactionTips ()
-    {
-        tipsMode = !tipsMode;
-        if (tipsMode == TIPS_ON)
-            txtareaMessages.appendText (PROMP_TIPS_ON);
-    }
+    @Override public String toString() { return "Controller : "+ nickname; }
 
 
-}
+}// class Controller8

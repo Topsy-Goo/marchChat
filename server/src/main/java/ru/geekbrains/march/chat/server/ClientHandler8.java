@@ -114,10 +114,6 @@ public class ClientHandler8
             {
                 connectionGettingClosed = true;
             }
-            //else if (msg.equals (CMD_STAT)) // Клиент запросил статистику
-            //{
-            //    syncSendMessageToClient (CMD_STAT, String.valueOf (msgCounter));
-            //}
             else if (server != null) //< если сервер ещё не упал
             {
                 if (msg.equals (CMD_CLIENTS_LIST)) //< клиент запросил список участников чата

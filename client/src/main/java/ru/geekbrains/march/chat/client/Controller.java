@@ -22,7 +22,7 @@ import static ru.geekbrains.march.chat.server.ServerApp.*;
 public class Controller implements Initializable
 {
     private final static String
-            TXT_INTRODUCE_YOURSELF = "Представьтесь:",
+            TXT_INTRODUCE_YOURSELF = "Представьтесь:  ",
             TXT_YOU_LOGED_IN_AS = "Вы вошли в чат как: ",
             FORMAT_TOYOU_PRIVATE_FROM = "\n[Вам приватно от %s]:\n\t%s",
             FORMAT_YOU_PRIVATE_TO = "\n[Приватно от Вас к %s]:\n\t%s",
@@ -89,8 +89,10 @@ public class Controller implements Initializable
 
     @Override public void initialize (URL location, ResourceBundle resources)
     {
+if (DEBUG) System.out.println("Controller.initialize().starts");
         threadParent = Thread.currentThread();
         updateUserInterface (CANNOT_CHAT);
+if (DEBUG) System.out.println("Controller.initialize().ends");
     }// initialize ()
 
 
@@ -130,6 +132,7 @@ public class Controller implements Initializable
 
     private void connect ()
     {
+if (DEBUG) System.out.println("Controller.connect().starts");
         appGettingOff = false;
 
     // создаём сокет для подключения к серверу по порт 8189 (сервер должен уже ждать нас на этом порте)
@@ -145,10 +148,11 @@ public class Controller implements Initializable
         }
         catch (IOException ioe)
         {
+if (DEBUG) System.out.println("Controller.connect().IOException");
             onCmdExit (PROMPT_UNABLE_TO_CONNECT);
             ioe.printStackTrace();
         }
-        syncSendMessageToServer(CMD_CLIENTS_LIST);
+if (DEBUG) System.out.println("Controller.connect().ends");
     }// connect ()
 
 //Закрытие сокета и обнуление связанных с ним переменных. + Внесение изменений в
@@ -170,17 +174,18 @@ public class Controller implements Initializable
 
     private String readInputStreamUTF ()
     {
+if (DEBUG) System.out.println("Controller.readInputStreamUTF().starts");
         String msg = null;
         int timer = 0;
         try
         {
-            while (!appGettingOff)
-            if (dis.available() > 0)
-            {
+            //while (!appGettingOff)
+            //if (dis.available() > 0)
+            //{
                 msg = dis.readUTF();
-                break;
-            }
-            else
+                //break;
+            //}
+     /*       else
     //По поводу использования следующего блока (в паре с available()) я хочу заметить, что метод readUTF()
     // блокирует мой поток так, что тот не может освободиться БЕЗ ПОМОЩИ ДРУГОГО ПРИЛОЖЕНИЯ. Мне кажется
     // это настолько ненормальным, что я решил оставить нижеследующий блок как минимум до тех пор, пока
@@ -198,12 +203,16 @@ public class Controller implements Initializable
                     dos.writeUTF(CMD_ONLINE);       //< «пингуем» сервер
                     timer = 0;
                 }
-            }
+            }//*/
         }
-        catch (IOException | InterruptedException e)
+        catch (IOException /*| InterruptedException*/ e)
         {
             onCmdExit (PROMPT_CONNECTION_LOST);
-            e.printStackTrace();
+            //e.printStackTrace();
+        }
+        finally
+        {
+if (DEBUG) System.out.println("Controller.readInputStreamUTF().ends - "+ msg);
         }
         return msg;
     }// readInputStreamUTF ()
@@ -211,6 +220,7 @@ public class Controller implements Initializable
 
     private void runTreadInputStream ()
     {
+if (DEBUG) System.out.println("Controller.runTreadInputStream().starts");
         String  msg;
 
         while (!appGettingOff && (msg = readInputStreamUTF()) != null)
@@ -236,13 +246,17 @@ public class Controller implements Initializable
                     break;
                 case CMD_CLIENTS_LIST:  onCmdClientsList();
                     break;
-                case CMD_LOGIN:   onCmdLogIn ();
+                case CMD_LOGIN:
+if (DEBUG) System.out.println("Controller.runTreadInputStream().CMD_LOGIN");
+                    onCmdLogIn ();
                     break;
                 case CMD_CHANGE_NICKNAME:   onCmdChangeNickname();
                     break;
-                case CMD_BADNICKNAME:   onCmdBadNickname();  //можем получить при регистрации и при смене имени.
+                case CMD_BADNICKNAME:
+                    onCmdBadNickname();  //можем получить при регистрации и при смене имени.
                     break;
-                case CMD_EXIT:   onCmdExit (PROMPT_YOU_ARE_LOGED_OFF);
+                case CMD_EXIT:
+                    onCmdExit (PROMPT_YOU_ARE_LOGED_OFF);
                     break;
                 case CMD_PRIVATE_MSG:   onCmdPrivateMsg (readInputStreamUTF(), readInputStreamUTF());
                     break;
@@ -251,6 +265,7 @@ public class Controller implements Initializable
             }
         }//while
         disconnect();
+if (DEBUG) System.out.println("Controller.runTreadInputStream().ends");
     }// runTreadInputStream ()
 
 // Обработчик команды CMD_PRIVATE_MSG.
@@ -302,6 +317,7 @@ public class Controller implements Initializable
         nickname = readInputStreamUTF();
         loginState = LOGED_IN;
         updateUserInterface (CAN_CHAT);
+        syncSendMessageToServer (CMD_CLIENTS_LIST);
         System.out.printf("\n\t%s подключен.", nickname); //< для отладки
     }// onCmdLogIn ()
 

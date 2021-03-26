@@ -97,7 +97,7 @@ public class Server8
 
         try (ServerSocket servsocket = new ServerSocket (this.port))
         {
-            threadConsoleToClient = new Thread(() -> runThreadConsoleToClient());
+            threadConsoleToClient = new Thread(() -> runThreadConsoleToClient (servsocket));
             threadConsoleToClient.start();
             System.out.print (SESSION_START);
 
@@ -105,10 +105,10 @@ public class Server8
             {
                 System.out.print (WAITING_FOR_CLIENTS);
                 Socket socket = servsocket.accept();
-                if (!serverGettingOff)
+                //if (!serverGettingOff)
                     new ClientHandler8 (this, socket);
-                else
-                    socket.close();
+                //else
+                //    socket.close();
             }//while
         }
         catch (IOException ioe)
@@ -147,10 +147,12 @@ public class Server8
 
 //Консоль для связи сервера с клиентами; сейчас сервер может посылать клиентам приватные сообщения и
 // выборочно отключать клиентов (посылать приватное сообщение CMD_EXIT; клиенты лишены такой возможности).
-    private void runThreadConsoleToClient () //поток threadConsoleToClient
+    private void runThreadConsoleToClient (ServerSocket servsocket) //поток threadConsoleToClient
     {
         String msg;
         int timer = 0;
+
+        if (servsocket != null)
         try (Scanner sc = new Scanner(System.in))
         {
             while (!serverGettingOff)
@@ -162,7 +164,7 @@ public class Server8
                 if (msg.equalsIgnoreCase (CMD_EXIT)) //< Сервер можно закрыть руками.
                 {
                     serverGettingOff = true; //< так мы закрываем наш поток -- threadConsoleToClient, …
-                    new Socket (SERVER_ADDRESS, SERVER_PORT).close(); //< …а так освобождаем основной поток от чар метода accept().
+                    servsocket.close();//new Socket (SERVER_ADDRESS, SERVER_PORT).close(); //< …а так освобождаем основной поток от чар метода accept().
                 }
                 else if (msg.equalsIgnoreCase(CMD_PRIVATE_MSG))
                 {

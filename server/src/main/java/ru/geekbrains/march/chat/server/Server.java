@@ -32,32 +32,33 @@ public class Server
     private final Map<String, ClientHandler> map;
     private String[] publicCliendsList;
     private Thread threadConsoleToClient;
-    private final Thread threadMain;
-    private boolean serverGettingOff = false;
-    private final Authentificator authentor;
+    //private final Thread threadMain;
+    private boolean serverGettingOff;
+    private final Authentificator authentificator;
 
 
     public Server (int port)
     {
         if (port < PORT_MIN || port > PORT_MAX)    throw new IllegalArgumentException();
 
+        serverGettingOff = false;
         map = new HashMap<>();
-        authentor = new AuthentificationProvider (0);
-            authentor.add("1", "11", "u1111");
-            authentor.add("2", "22", "u2222");
-            authentor.add("3", "33", "u3333");
-            authentor.add("4", "44", "u4444");
+        authentificator = new AuthentificationProvider (0);
+            authentificator.add("1", "11", "u1111");
+            authentificator.add("2", "22", "u2222");
+            authentificator.add("3", "33", "u3333");
+            authentificator.add("4", "44", "u4444");
 
         syncUpdatePublicClientsList();
         this.port = port;
-        threadMain = Thread.currentThread();
+        //threadMain = Thread.currentThread();
         SERVERNAME = SERVERNAME_BASE_ + serverNameCounter ++;
 
     // создали сокет на порте 8189 (нужно использовать любой свободный порт). Если порт занят,
     // то получим исключение, но, скорее всего, порт 8189 будет свободен.
         try (ServerSocket servsocket = new ServerSocket (this.port))
         {
-            threadConsoleToClient = new Thread(() -> runThreadConsoleToClient());
+            threadConsoleToClient = new Thread(() -> runThreadConsoleToClient (servsocket));
             threadConsoleToClient.start();
             System.out.print (SESSION_START);
 
@@ -67,10 +68,10 @@ public class Server
     // ожидаем подключений (бесконечно, если подключений так и не будет). Если подключение придёт, то в
     // socket окажется подключение к клиенту (клиент должен знать, что мы его ждём на порте 8189).
                 Socket serverSideSocket = servsocket.accept();
-                if (!serverGettingOff)
+                //if (!serverGettingOff)
                     new ClientHandler (this, serverSideSocket);
-                else
-                    serverSideSocket.close();
+                //else
+                //    serverSideSocket.close();
 
     // цикл чтения байтов из входного потока (закоментируем этот фрагмент, чтобы он не мешал воспользоваться
     // некоторыми усовершенствованиями, которые находястя в следующем за ним фрагменте)
@@ -126,14 +127,16 @@ public class Server
  если клиент покидает чат, отправив серверу /exit, то этот метод падает и тащит за собой Server (что
  приводит к отключению остальных клиентов). Причина глюка пока не выяснена, но, видимо, дело в сканере
  или ещё каком-то общем ресурсе.)    //*/
-    private void runThreadConsoleToClient () //поток threadConsoleToClient
+    private void runThreadConsoleToClient (ServerSocket servsocket) //поток threadConsoleToClient
     {
         String msg;
         int timer = 0;
+
+        if (servsocket != null)
         try (Scanner sc = new Scanner(System.in))
         {
             while (!serverGettingOff)
-            if (System.in.available() > 0)
+            //if (System.in.available() > 0)
             {
                 msg = sc.nextLine().trim();
 
@@ -141,7 +144,9 @@ public class Server
                 if (msg.equalsIgnoreCase(CMD_EXIT)) //< Сервер можно закрыть руками.
                 {
                     serverGettingOff = true; //< так мы закрываем наш поток -- threadConsoleToClient
-                    new Socket (SERVER_ADDRESS, SERVER_PORT).close(); //< а так освобождаем основной поток от чар метода accept().
+                    servsocket.close(); //< а так освобождаем основной поток от чар метода accept().
+                    //new Socket (SERVER_ADDRESS, SERVER_PORT).close(); < этот способ закрытия приложения
+                    //      не вызывает исключения, но в данном случае servsocket.close() конечно лучше.
                 }
                 else if (msg.equalsIgnoreCase(CMD_PRIVATE_MSG))
                 {
@@ -159,31 +164,31 @@ public class Server
                 }
                 else syncBroadcastMessage (msg, null);
             }
-            else
-            {
-                Thread.sleep(CONSOLE_THREAD_SLEEPINTERVAL);
-                timer ++;
-                if (timer > 5000 / CONSOLE_THREAD_SLEEPINTERVAL)
-                {
-                    if (!threadMain.isAlive())  //< проверяем родительский поток
-                        break;
-                    timer = 0;
-                }
-            }
+            //else
+            //{
+            //    Thread.sleep(CONSOLE_THREAD_SLEEPINTERVAL);
+            //    timer ++;
+            //    if (timer > 5000 / CONSOLE_THREAD_SLEEPINTERVAL)
+            //    {
+            //        if (!threadMain.isAlive())  //< проверяем родительский поток
+            //            break;
+            //        timer = 0;
+            //    }
+            //}
         }
-        catch (InterruptedException | IOException ex) {ex.printStackTrace();} //для sleep() | для available()
+        catch (/*InterruptedException |*/ IOException ex) {ex.printStackTrace();} //для sleep() | для available()
         finally
         {
             serverGettingDown();
+            System.out.print ("\n(Поток Server.threadConsoleToClient закрылся.)");
         }
-        System.out.print ("\n(Поток Server.threadConsoleToClient закрылся.)");
     }// runThreadConsoleToClient ()
 
 
 //Проверяем имя клиента на уникальность и при необходимости добавляем его в список подключенных клиентов.
     public synchronized String syncValidateOnLogin (String login, String password, ClientHandler client)
     {
-        String nick = authentor.authenticate(login, password);
+        String nick = authentificator.authenticate(login, password);
 
         //boolean boolOk = false;
         //if (newname != null && !newname.isEmpty() &&
@@ -221,7 +226,7 @@ public class Server
         if (client != null)
         {
             String prevname = client.getClientName();
-            if (authentor.rename(prevname, newnickname))
+            if (authentificator.rename(prevname, newnickname))
             {
                 map.remove (prevname);
                 map.put (newnickname, client);

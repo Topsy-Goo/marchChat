@@ -6,7 +6,6 @@ import java.io.IOException;
 import java.net.Socket;
 
 import static ru.geekbrains.march.chat.server.ServerApp.*;
-import static ru.geekbrains.march.chat.server.ServerApp8.CMD_CLIENTS_LIST;
 
 public class ClientHandler
 {
@@ -36,6 +35,7 @@ public class ClientHandler
 
     public ClientHandler (Server serv, Socket serverSideSocket)
     {
+if (DEBUG) System.out.println("ClientHandler.ClientHandler().s");
         if (serverSideSocket == null || serv == null)
             throw new IllegalArgumentException();
 
@@ -57,50 +57,54 @@ public class ClientHandler
             ioe.printStackTrace();
         }
         System.out.print (CLIENT_CREATED);
+if (DEBUG) System.out.println("ClientHandler.ClientHandler().e");
     }//ClientHandler (Socket)
 
 
     private String readInputStreamUTF ()
     {
-        int sleeptimer = 0;
+if (DEBUG) System.out.println("ClientHandler.readInputStreamUTF().s");
+        //int sleeptimer = 0;
         String msg = null;
         try
         {
-            while (!connectionGettingClosed)
-            if (dis.available() > 0)
-            {
+            //while (!connectionGettingClosed)
+            //if (dis.available() > 0)
+            //{
                 msg = dis.readUTF();
-                break;
-            }
-            else //Такой же блок есть в Controller.readInputStreamUTF(). Там я описал причину,
-            {    // по которой оставил этот блок без изменений.
-                Thread.sleep(C2S_THREAD_SLEEPINTERVAL);
+            //    break;
+            //}
+            //else //Такой же блок есть в Controller.readInputStreamUTF(). Там я описал причину,
+            //{    // по которой оставил этот блок без изменений.
+            //    Thread.sleep(C2S_THREAD_SLEEPINTERVAL);
 
             //Раз в 5 сек. проверяем, не работает ли наш поток впустую.
-                sleeptimer ++;
-                if (sleeptimer > 5000 / C2S_THREAD_SLEEPINTERVAL)
-                {
-                    if (!threadMain.isAlive())  //< проверяем родительский поток
-                        break;
-                    syncSendMessageToClient (CMD_ONLINE);   //< «пингуем» клиента
-                    sleeptimer = 0;
-                }
-            }
+            //    sleeptimer ++;
+            //    if (sleeptimer > 5000 / C2S_THREAD_SLEEPINTERVAL)
+            //    {
+            //        if (!threadMain.isAlive())  //< проверяем родительский поток
+            //            break;
+            //        syncSendMessageToClient (CMD_ONLINE);   //< «пингуем» клиента
+            //        sleeptimer = 0;
+            //    }
+            //}
         }
-        catch (InterruptedException e) {e.printStackTrace();}
+        //catch (InterruptedException e) {e.printStackTrace();}
         catch (IOException e)
         {
             connectionGettingClosed = true;
             msg = null;
             System.out.print("\nClientHandler.readInputStreamUTF() : ошибка соединения.");
-            e.printStackTrace();
+            //e.printStackTrace();
         }
+if (DEBUG) System.out.println("ClientHandler.readInputStreamUTF().e - "+msg);
         return msg;
     }// readInputStreamUTF ()
 
 
     private void runThreadClientToServer ()
     {
+if (DEBUG) System.out.println("ClientHandler.runThreadClientToServer().starts");
         String msg;
         while (!connectionGettingClosed && (msg = readInputStreamUTF()) != null)
         {
@@ -126,6 +130,7 @@ public class ClientHandler
                 else
                 if (msg.equals (CMD_LOGIN)) // Клиент запросил регистрацию в чате
                 {
+if (DEBUG) System.out.println("ClientHandler.runThreadClientToServer().CMD_LOGIN");
                     onCmdLogin();
                 }
                 else
@@ -166,12 +171,14 @@ public class ClientHandler
         System.out.print ("\nClientHandler.runThreadClientToServer() - поток threadClientToServer закрылся.");
         threadClientToServer = null;
         close();
+if (DEBUG) System.out.println("ClientHandler.runThreadClientToServer().ends");
     }// runThreadClientToServer ()
 
 
 //Обработчик команды CMD_LOGIN.
     private void onCmdLogin ()
     {
+if (DEBUG) System.out.println("ClientHandler.onCmdLogin ()");
         if (nickname != null)
             throw new RuntimeException("ERROR @ runThreadClientToServer() : повторная регистрация?");
 
