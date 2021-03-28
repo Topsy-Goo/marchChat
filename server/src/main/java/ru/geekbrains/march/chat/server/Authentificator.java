@@ -4,7 +4,7 @@ public interface Authentificator
 {
     String authenticate (String login, String password);
     boolean add (String lgn, String psw, String nick);
-    boolean rename (String prevName, String newName);
+    String rename (String prevName, String newName);
     void remove (String nick);
 
 }// interface Authentificator
