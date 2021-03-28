@@ -6,36 +6,24 @@ import javafx.scene.Parent;
 import javafx.scene.Scene;
 import javafx.stage.Stage;
 
-//import static ru.geekbrains.march.chat.server.ServerApp.DEBUG;
-
-public class Main extends Application
+public class Main9 extends Application
 {
     public static final String
             WNDTITLE_APPNAME = "March Chat";
 
-    //Controller controller = null;
-
     @Override public void start (Stage primaryStage) throws Exception
     {
-//if (DEBUG) System.out.println("Main.start().s");
-        Parent root = FXMLLoader.load(getClass().getResource ("/window.fxml"));
+        Parent root = FXMLLoader.load(getClass().getResource("/window9.fxml"));
         primaryStage.setTitle (WNDTITLE_APPNAME);
         Scene scene = new Scene (root, 350, 250);
         primaryStage.setScene (scene);
         primaryStage.show();
         primaryStage.setMinWidth(350);
         primaryStage.setMinHeight(250);
-//if (DEBUG) System.out.println("Main.start().e");
-    }// start ()
-
+    }
 
     public static void main (String[] args)
     {
-//if (DEBUG) System.out.println("Main.main().s");
         launch (args);
-//if (DEBUG) System.out.println("Main.main().e");
-    }// main ()
-
-
-}// class Main
-
+    }
+}
