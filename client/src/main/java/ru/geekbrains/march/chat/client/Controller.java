@@ -14,9 +14,11 @@ import java.io.DataOutputStream;
 import java.io.IOException;
 import java.net.Socket;
 import java.net.URL;
+import java.util.Arrays;
 import java.util.Optional;
 import java.util.ResourceBundle;
 
+import static ru.geekbrains.march.chat.client.Main.WNDTITLE_APPNAME;
 import static ru.geekbrains.march.chat.server.ServerApp.*;
 
 public class Controller implements Initializable
@@ -24,8 +26,9 @@ public class Controller implements Initializable
     private final static String
             TXT_INTRODUCE_YOURSELF = "Представьтесь:  ",
             TXT_YOU_LOGED_IN_AS = "Вы вошли в чат как: ",
-            FORMAT_TOYOU_PRIVATE_FROM = "\n[Вам приватно от %s]:\n\t%s",
-            FORMAT_YOU_PRIVATE_TO = "\n[Приватно от Вас к %s]:\n\t%s",
+            WELCOME_TO_MARCHCHAT = "Добро пожаловать в March Chat!",
+            FORMAT_TOYOU_PRIVATE_FROM = "\n[%s приватно Вам]:\n\t%s",
+            FORMAT_YOU_PRIVATE_TO = "\n[Вы приватно для %s]:\n\t%s",
             PROMPT_TIPS_ON = "\nПодсказки включены.",
             PROMPT_UNABLE_TO_CONNECT = "\nНе удалось подключиться.",
             PROMPT_YOU_ARE_LOGED_OFF = "\nВы вышли из чата.",
@@ -41,7 +44,7 @@ public class Controller implements Initializable
             ALERT_HEADER_ERROR = "Ошибка!",
             ALERT_HEADER_ADDRESSEE = "Не выбран получатель сообщения.",
             ALERT_HEADER_EMPTY_MESSAGE = "Пустое сообщение",
-            ALERT_HEADER_NICKNAME_CHANGING = "Смена имени в чате.",
+            ALERT_HEADER_RENAMING = "Смена имени в чате.",
             ALERT_BAN_NICKNAME_SPECIFIED = "\nУказанное имя пользователя некорректно или уже используется.",
             ALERT_UNABLE_TO_SEND_MESSAGE = "Не удадось отправить сообщение.",
             ALERT_ADDRESSEE_NOTSELECTED = "Выберите получателя сообщения в списке участников чата и попробуйте снова.",
@@ -89,10 +92,11 @@ public class Controller implements Initializable
 
     @Override public void initialize (URL location, ResourceBundle resources)
     {
-if (DEBUG) System.out.println("Controller.initialize().starts");
+//if (DEBUG) System.out.println("Controller.initialize().starts");
         threadParent = Thread.currentThread();
         updateUserInterface (CANNOT_CHAT);
-if (DEBUG) System.out.println("Controller.initialize().ends");
+        txtareaMessages.appendText (WELCOME_TO_MARCHCHAT);
+//if (DEBUG) System.out.println("Controller.initialize().ends");
     }// initialize ()
 
 
@@ -132,7 +136,7 @@ if (DEBUG) System.out.println("Controller.initialize().ends");
 
     private void connect ()
     {
-if (DEBUG) System.out.println("Controller.connect().starts");
+//if (DEBUG) System.out.println("Controller.connect().starts");
         appGettingOff = false;
 
     // создаём сокет для подключения к серверу по порт 8189 (сервер должен уже ждать нас на этом порте)
@@ -148,11 +152,11 @@ if (DEBUG) System.out.println("Controller.connect().starts");
         }
         catch (IOException ioe)
         {
-if (DEBUG) System.out.println("Controller.connect().IOException");
+//if (DEBUG) System.out.println("Controller.connect().IOException");
             onCmdExit (PROMPT_UNABLE_TO_CONNECT);
             ioe.printStackTrace();
         }
-if (DEBUG) System.out.println("Controller.connect().ends");
+//if (DEBUG) System.out.println("Controller.connect().ends");
     }// connect ()
 
 //Закрытие сокета и обнуление связанных с ним переменных. + Внесение изменений в
@@ -174,18 +178,17 @@ if (DEBUG) System.out.println("Controller.connect().ends");
 
     private String readInputStreamUTF ()
     {
-if (DEBUG) System.out.println("Controller.readInputStreamUTF().starts");
         String msg = null;
         int timer = 0;
         try
         {
-            //while (!appGettingOff)
-            //if (dis.available() > 0)
-            //{
+            while (!appGettingOff)
+            if (dis.available() > 0)
+            {
                 msg = dis.readUTF();
-                //break;
-            //}
-     /*       else
+                break;
+            }
+            else
     //По поводу использования следующего блока (в паре с available()) я хочу заметить, что метод readUTF()
     // блокирует мой поток так, что тот не может освободиться БЕЗ ПОМОЩИ ДРУГОГО ПРИЛОЖЕНИЯ. Мне кажется
     // это настолько ненормальным, что я решил оставить нижеследующий блок как минимум до тех пор, пока
@@ -205,22 +208,19 @@ if (DEBUG) System.out.println("Controller.readInputStreamUTF().starts");
                 }
             }//*/
         }
-        catch (IOException /*| InterruptedException*/ e)
+        catch (IOException | InterruptedException e)
         {
             onCmdExit (PROMPT_CONNECTION_LOST);
             //e.printStackTrace();
         }
-        finally
-        {
-if (DEBUG) System.out.println("Controller.readInputStreamUTF().ends - "+ msg);
-        }
+        //finally  {if (DEBUG) System.out.println("Controller.readInputStreamUTF().ends - "+ msg);}
         return msg;
     }// readInputStreamUTF ()
 
 
     private void runTreadInputStream ()
     {
-if (DEBUG) System.out.println("Controller.runTreadInputStream().starts");
+//if (DEBUG) System.out.println("Controller.runTreadInputStream().starts");
         String  msg;
 
         while (!appGettingOff && (msg = readInputStreamUTF()) != null)
@@ -240,33 +240,46 @@ if (DEBUG) System.out.println("Controller.runTreadInputStream().starts");
 
             switch (msg.toLowerCase())
             {
-                case CMD_CHAT_MSG:  onCmdChatMsg (readInputStreamUTF());
+                case CMD_CHAT_MSG:  onCmdChatMsg(readInputStreamUTF());
                     break;
                 case CMD_CLIENTS_LIST_CHANGED:  syncSendMessageToServer (CMD_CLIENTS_LIST);
                     break;
                 case CMD_CLIENTS_LIST:  onCmdClientsList();
                     break;
-                case CMD_LOGIN:
-if (DEBUG) System.out.println("Controller.runTreadInputStream().CMD_LOGIN");
-                    onCmdLogIn ();
+                case CMD_LOGIN:    onCmdLogIn ();
+                    break;
+                case CMD_BADLOGIN:  onCmdBadLogin();
                     break;
                 case CMD_CHANGE_NICKNAME:   onCmdChangeNickname();
                     break;
-                case CMD_BADNICKNAME:
-                    onCmdBadNickname();  //можем получить при регистрации и при смене имени.
+                case CMD_BADNICKNAME:    onCmdBadNickname();
                     break;
-                case CMD_EXIT:
-                    onCmdExit (PROMPT_YOU_ARE_LOGED_OFF);
+                case CMD_EXIT:    onCmdExit (PROMPT_YOU_ARE_LOGED_OFF);
                     break;
-                case CMD_PRIVATE_MSG:   onCmdPrivateMsg (readInputStreamUTF(), readInputStreamUTF());
+                case CMD_PRIVATE_MSG:   onCmdPrivateMsg(readInputStreamUTF(), readInputStreamUTF());
                     break;
                 default:   throw new UnsupportedOperationException (
                               "ERROR @ runTreadInputStream() : незарегистрированное сообщение:\n\t" + msg);
             }
         }//while
         disconnect();
-if (DEBUG) System.out.println("Controller.runTreadInputStream().ends");
+//if (DEBUG) System.out.println("Controller.runTreadInputStream().ends");
     }// runTreadInputStream ()
+
+
+// Обработчик команды CMD_BADLOGIN.
+    void onCmdBadLogin ()
+    {
+        alertWarning (ALERT_HEADER_LOGINERROR, readInputStreamUTF());
+        onCmdExit (PROMPT_CONNECTION_LOST);
+    }// onCmdBadLogin ()
+
+// Обработчик команды CMD_BADNICKNAME. В качестве параметра в метод передаётся строка, которая будет выведена
+// в окно чата. Сообщение от сервера будет
+    void onCmdBadNickname ()
+    {
+        alertWarning (ALERT_HEADER_RENAMING, readInputStreamUTF());
+    }// onCmdBadNickname ()
 
 // Обработчик команды CMD_PRIVATE_MSG.
     void onCmdPrivateMsg (String from, String msg)
@@ -283,15 +296,6 @@ if (DEBUG) System.out.println("Controller.runTreadInputStream().ends");
             txtareaMessages.appendText ('\n'+ msg);
         });
     }// onCmdChatMsg ()
-
-// Обработчик команды CMD_BADNICKNAME. В качестве параметра в метод передаётся строка, которая будет выведена
-// в окно чата. Сообщение от сервера будет
-    void onCmdBadNickname ()
-    {
-        alertWarning (ALERT_HEADER_LOGINERROR, readInputStreamUTF());
-        onCmdExit (PROMPT_CONNECTION_LOST);
-    }// onCmdBadNickname ()
-
 
 // Обработчик команды CMD_EXIT (также вызывается из onactionLogin() при нажатии кнопки Вход/Выход).
     private void onCmdExit (String prompt)
@@ -338,18 +342,34 @@ if (DEBUG) System.out.println("Controller.runTreadInputStream().ends");
     }// onCmdChangeNickname ()
 
 // Обработчик команды CMD_CLIENTS_LIST
+//    private String[] tmplist;
     private void onCmdClientsList ()
     {
-        int size = Integer.parseInt (readInputStreamUTF());
-        String[] list = new String[size];
-        for (int i=0; i<size; i++)
-        {
-            list[i] = readInputStreamUTF();
-        }
+        //Platform.runLater(()->{
+            int size = Integer.parseInt(readInputStreamUTF()); /*< иногда вместо числа приходит /chat (наверное,
+    рассинхрон. Пытаемся пофиксить:
+    - «синхронизировали» readInputStreamUTF(), проверяем…, не помогло;
+    - поместили в Platform.runLater() всё тело метода, проверяем…, стало только хуже, вернули Platform.runLater() на место;
+    - «синхронизировали» ClientHandler.readInputStreamUTF(), проверяем…,
+      всё повисло из-за синхронизации ClientHandler.syncSendMessageToClient()!;
+    - думаем…
+    - вынесли массив из метода, кажется,помогло(пробовали синхронизировать этот лист,но появляются глюки), наблюдаем…, не помогло;
+      (если дело в массиве, то нужен стек запросов, или при входе в чат
+      высылять клиенту список и стекировать другие сообщения к нему до тех пор, пока он не отчитается о том, что прочёл
+      список, и потом он будет добавлять/удалять клиентов из своего списка по мере необходимости. В общем, нужна полная
+      перестройка)).
+*/
+            String[] tmplist = new String[size];
+
+            for (int i=0; i<size; i++)
+                tmplist[i] = readInputStreamUTF();
+        System.out.print("\nCMD_CLIENTS_LIST:"+ Arrays.toString(tmplist));
+
         Platform.runLater(()->{
             listviewClients.getItems().clear();
-            for (String s : list)
+            for (String s : tmplist)
                 listviewClients.getItems().add(s);
+            //tmplist = null; < это почему-то тоже делать нельзя… Мля! Я не понимаю, как эта херня работает!..
         });
     }// onCmdClientsList ()
 
@@ -404,24 +424,22 @@ if (DEBUG) System.out.println("Controller.runTreadInputStream().ends");
             {
                 if (tipsMode == TIPS_ON)   alertWarning (ALERT_HEADER_EMPTY_MESSAGE, ALERT_EMPTY_MESSAGE);
             }
-            else
-            if (changeNicknameMode == MODE_CHANGE_NICKNAME) //< Будем считать этот режим более сильным, чем режим privateMode
+            else if (changeNicknameMode == MODE_CHANGE_NICKNAME) //< Будем считать этот режим более сильным, чем режим privateMode
             {
                 String message = String.format (ALERT_CONFIRM_NEW_NICKNAME, msg);
-                if (alertConfirmationYesNo (ALERT_HEADER_NICKNAME_CHANGING, message) == ANSWER_YES)
+                if (alertConfirmationYesNo (ALERT_HEADER_RENAMING, message) == ANSWER_YES)
                     syncSendMessageToServer (CMD_CHANGE_NICKNAME, msg);
             }
-            else
-            if (privateMode == MODE_PRIVATE)
+            else if (privateMode == MODE_PRIVATE)
             {
             //Если мы в приватном режиме, то для отправки сообщения нужно выбрать получателя с списке
             //участников чата.
                 String name = listviewClients.getSelectionModel().getSelectedItem();
+
                 if (name == null || name.isEmpty())
                     alertWarning (ALERT_HEADER_ADDRESSEE, ALERT_ADDRESSEE_NOTSELECTED); //< если получатель не выбран
                 else
-                {
-                    boolSent = syncSendMessageToServer(CMD_PRIVATE_MSG, name, msg);
+                {   boolSent = syncSendMessageToServer (CMD_PRIVATE_MSG, name, msg);
                     txtareaMessages.appendText (String.format (FORMAT_YOU_PRIVATE_TO, name, msg));
                 }
             }
@@ -452,7 +470,7 @@ if (DEBUG) System.out.println("Controller.runTreadInputStream().ends");
     }// syncSendMessageToServer ()
 
 
-    @Override public String toString() { return "Controller : "+ nickname; }
+    @Override public String toString() { return "Controller:"+ nickname; }
 
     public void onactionTogglePrivateMode ()
     {

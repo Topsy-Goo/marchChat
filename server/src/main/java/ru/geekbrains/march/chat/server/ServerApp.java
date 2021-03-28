@@ -3,9 +3,8 @@ package ru.geekbrains.march.chat.server;
 
 public class ServerApp
 {
-    public static final boolean DEBUG = true;
+    //public static final boolean DEBUG = true;
     public static final String
-            WNDTITLE_APPNAME = "March chat",
             CMD_CHAT_MSG = "/chat",
             CMD_PRIVATE_MSG = "/w",
             CMD_EXIT = "/exit",
@@ -13,8 +12,9 @@ public class ServerApp
             //CMD_WHOAMI = "/who_am_i",
             CMD_ONLINE = "/online",
             CMD_LOGIN = "/login",
-            CMD_BADNICKNAME = "/login_bad",
+            CMD_BADLOGIN = "/badlogin",
             CMD_CHANGE_NICKNAME = "/change_nik",
+            CMD_BADNICKNAME = "/login_bad",
             CMD_CLIENTS_LIST = "/clients_list",
             CMD_CLIENTS_LIST_CHANGED = "/clients_list_changed",
             SERVER_ADDRESS = "localhost",

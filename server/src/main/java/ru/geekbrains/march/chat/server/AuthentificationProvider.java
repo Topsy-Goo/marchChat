@@ -8,8 +8,7 @@ import static java.lang.Integer.max;
 
 public class AuthentificationProvider implements Authentificator
 {
-    public static boolean
-        THROW_EXCEPTION = true, SOFT_MODE = !THROW_EXCEPTION;
+    public static boolean THROW_EXCEPTION = true, SOFT_MODE = !THROW_EXCEPTION;
     private final static int MAP_CAPACITY_MIN = 16;
     public static final String FORMAT_USER = "(lpn:%s,%s,%s)";
 
@@ -41,15 +40,16 @@ public class AuthentificationProvider implements Authentificator
         mapNicknames = new HashMap<>(capacity);
     }// конструктор
 
-
+//(Вспомогательная.) Проверяет строку на пригодность для использования в качестве логина, пароля, ника.
     private static boolean validateStrings (boolean mode, String ... lines)
     {
         for (String s : lines)
-            if (s == null || s.trim().isEmpty())
-                if (mode == THROW_EXCEPTION)
-                    throw new InvalidParameterException ("ERROR @ validateString() : String must not be null or empty.");
-                else
-                    return false;
+        if (s == null || s.trim().isEmpty())
+            if (mode == THROW_EXCEPTION)
+                throw new InvalidParameterException (
+                    "ERROR @ validateString() : String must not be null, empty or blank.");
+            else
+                return false;
         return true;
     }// validateString ()
 
@@ -86,9 +86,10 @@ public class AuthentificationProvider implements Authentificator
 
 
 //меняем ник пользователя на указанный.
-    @Override public boolean rename (String prevName, String newnickname)
+    @Override public String rename (String prevName, String newnickname)
     {
-        boolean boolOk = false;
+        //boolean boolOk = false;
+        String result = null;
         String login;
         User u;
 
@@ -99,10 +100,12 @@ public class AuthentificationProvider implements Authentificator
         {
             mapNicknames.put (newnickname, login);
             u.nickname = newnickname;
-            boolOk = true;
+            //boolOk = true;
+            result = newnickname;
         }
         else System.out.print("\nНе удалось изменить ник пользователя : "+prevName+" -> "+newnickname+".");
-        return boolOk;
+        //return boolOk;
+        return result;
     }// changeNickname ()
 
 

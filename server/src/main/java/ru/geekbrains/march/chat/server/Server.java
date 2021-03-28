@@ -3,6 +3,7 @@ package ru.geekbrains.march.chat.server;
 import java.io.IOException;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.security.InvalidParameterException;
 import java.util.*;
 
 import static ru.geekbrains.march.chat.server.ServerApp.*;
@@ -43,11 +44,11 @@ public class Server
 
         serverGettingOff = false;
         map = new HashMap<>();
-        authentificator = new AuthentificationProvider (0);
-            authentificator.add("1", "11", "u1111");
-            authentificator.add("2", "22", "u2222");
-            authentificator.add("3", "33", "u3333");
-            authentificator.add("4", "44", "u4444");
+        authentificator = new JdbcAuthentificationProvider();
+        //authentificator.add("1", "11", "u1111");
+        //authentificator.add("2", "22", "u2222");
+        //authentificator.add("3", "33", "u3333");
+        //authentificator.add("4", "44", "u4444");
 
         syncUpdatePublicClientsList();
         this.port = port;
@@ -188,55 +189,40 @@ public class Server
 //Проверяем имя клиента на уникальность и при необходимости добавляем его в список подключенных клиентов.
     public synchronized String syncValidateOnLogin (String login, String password, ClientHandler client)
     {
-        String nick = authentificator.authenticate(login, password);
+        String nick = authentificator.authenticate (login, password);
 
-        //boolean boolOk = false;
-        //if (newname != null && !newname.isEmpty() &&
-        //    map != null && !map.containsKey(newname))
-        //{
-        //    if (add == VALIDATE_AND_RENAME)
-        //        syncRemoveClient (client, MODE_SILENT);
-        //        // (Здесь мы вносим изменения в список клиентов, а завершат переименование
-        //        // клиента ClientHandler и Controller.)
-        //
-        //    boolOk = true;
-        //}
-        if (nick != null)
-        {
-            if (map.containsKey (nick))
-            {
-                nick = ""; //< так будет выглядеть индикатор повторного входа в чат
-            }
-            else
-            {
-                map.put (nick, client);
-                syncUpdatePublicClientsList();
-                syncBroadcastMessage (CMD_CLIENTS_LIST_CHANGED, null);
-                //syncBroadcastMessage (ENTER_CHAT, client); < сейчас у клиента nickname == null
-            }
+        if (nick != null)   //< значение null покажет клиенту, что логин и/или пароль не подошли
+        if (map.containsKey (nick))
+            nick = "";      //< пустая строка будет индикатором повторного входа в чат
+        else
+        {   map.put (nick, client);
+            syncUpdatePublicClientsList();
+            syncBroadcastMessage (CMD_CLIENTS_LIST_CHANGED, null);
+            //syncBroadcastMessage (ENTER_CHAT, client) не вызываем, т.к. сейчас у клиента nickname == null
         }
         return nick;
     }// syncValidateOnLogin ()
 
 
 //Клиент запросил смену имени.
-    public synchronized boolean syncChangeNickname (ClientHandler client, String newnickname)
+    public synchronized String syncChangeNickname (ClientHandler client, String newnickname)
     {
-        boolean boolOk = false;
+        String result = null;
         if (client != null)
         {
-            String prevname = client.getClientName();
-            if (authentificator.rename(prevname, newnickname))
+            String prevnickname = client.getClientName();
+            result = authentificator.rename (prevnickname, newnickname);
+
+            if (result != null && !result.isEmpty())
             {
-                map.remove (prevname);
+                map.remove (prevnickname);
                 map.put (newnickname, client);
                 syncUpdatePublicClientsList();
                 syncBroadcastMessage (CMD_CLIENTS_LIST_CHANGED, null);
                 syncBroadcastMessage (String.format (FORMAT_RENAMING_TO_, newnickname), client);
-                boolOk = true;
             }
         }
-        return boolOk;
+        return result;
     }// syncChangeNickname ()
 
 
@@ -293,8 +279,8 @@ public class Server
     {
         boolean boolSent = false;
 
-        if (message != null && !message.isEmpty() &&
-            nameTo  != null && !nameTo.isEmpty()  &&
+        if (message != null && !(message = message.trim()).isEmpty() &&
+            nameTo  != null && !(nameTo = nameTo.trim()).isEmpty()  &&
             map != null)
         {
             String nameFrom = (clientFrom != null) ? clientFrom.getClientName() : SERVERNAME;
@@ -323,6 +309,9 @@ public class Server
                 else
                 clientFrom.syncSendMessageToClient (String.format(FORMAT_NO_SUCH_USER, nameTo));
         }
+        else throw new InvalidParameterException (String.format("ERROR @ syncSendPrivateMessage():" +
+                            "\n\tnameTo = %s,\n\tmessage = %s,\n\tclientFrom = %s,\n\tnameFrom = %s.",
+                            nameTo, message, clientFrom, clientFrom.getClientName()));
         return boolSent;
     }// syncSendPrivateMessage ()
 

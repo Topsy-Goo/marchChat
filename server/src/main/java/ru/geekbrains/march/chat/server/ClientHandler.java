@@ -12,7 +12,6 @@ public class ClientHandler
     private String nickname; //< После регистрации пользователя clientName == Controller.userName.
     private final int C2S_THREAD_SLEEPINTERVAL = 100,
                       IDLE_TIMER_INTERVAL = 120_000;
-    //private int msgCounter = 0;
     private boolean connectionGettingClosed = false;
 
     private Socket socket;
@@ -20,22 +19,23 @@ public class ClientHandler
     private DataInputStream dis;
     private DataOutputStream dos;
     private Thread threadClientToServer,
-                   //threadCloser,
                    threadMain;
 
     private final static String
-            CONNECTION_ESTABLISHED = "\nСоединение с сервером установлено."/*\nСервер ожидает регистрации пользователя.*/,
+            CONNECTION_ESTABLISHED = "\nСоединение с сервером установлено.",
             CLIENT_CREATED = "клиент создан.",
             FORMAT_UNABLE_SEND_MESSAGE_TO = "Не удалось отправить сообщение:\n\t%s",
             SERVER_OFF = "Сервер прекратил работу.",
-            MSG_LOGINERROR_BUSY = "Учётная запись в настоящий момент используется.",
-            MSG_LOGINERROR_INVALID = "Указаны некорректные логин и/или пароль.",
-            ENTER_CHAT = "(вошёл в чат)"
+            PROMPT_LOGINERROR_BUSY = "Учётная запись в настоящий момент используется.",
+            PROMPT_LOGINERROR_INVALID = "Указаны некорректные логин и/или пароль.",
+            ENTER_CHAT = "(вошёл в чат)",
+            PROMPT_RENAMING_ERROR = "Ошибка.",
+            PROMPT_RENAMING_FAILED = "Не удалось переименовать. Возможно, указанное имя пустое или уже используется."
             ;
 
     public ClientHandler (Server serv, Socket serverSideSocket)
     {
-if (DEBUG) System.out.println("ClientHandler.ClientHandler().s");
+//if (DEBUG) System.out.println("ClientHandler.ClientHandler().s");
         if (serverSideSocket == null || serv == null)
             throw new IllegalArgumentException();
 
@@ -57,39 +57,38 @@ if (DEBUG) System.out.println("ClientHandler.ClientHandler().s");
             ioe.printStackTrace();
         }
         System.out.print (CLIENT_CREATED);
-if (DEBUG) System.out.println("ClientHandler.ClientHandler().e");
+//if (DEBUG) System.out.println("ClientHandler.ClientHandler().e");
     }//ClientHandler (Socket)
 
 
     private String readInputStreamUTF ()
     {
-if (DEBUG) System.out.println("ClientHandler.readInputStreamUTF().s");
-        //int sleeptimer = 0;
+        int sleeptimer = 0;
         String msg = null;
         try
         {
-            //while (!connectionGettingClosed)
-            //if (dis.available() > 0)
-            //{
+            while (!connectionGettingClosed)
+            if (dis.available() > 0)
+            {
                 msg = dis.readUTF();
-            //    break;
-            //}
-            //else //Такой же блок есть в Controller.readInputStreamUTF(). Там я описал причину,
-            //{    // по которой оставил этот блок без изменений.
-            //    Thread.sleep(C2S_THREAD_SLEEPINTERVAL);
+                break;
+            }
+            else //Такой же блок есть в Controller.readInputStreamUTF(). Там я описал причину,
+            {    // по которой оставил этот блок без изменений.
+                Thread.sleep(C2S_THREAD_SLEEPINTERVAL);
 
             //Раз в 5 сек. проверяем, не работает ли наш поток впустую.
-            //    sleeptimer ++;
-            //    if (sleeptimer > 5000 / C2S_THREAD_SLEEPINTERVAL)
-            //    {
-            //        if (!threadMain.isAlive())  //< проверяем родительский поток
-            //            break;
-            //        syncSendMessageToClient (CMD_ONLINE);   //< «пингуем» клиента
-            //        sleeptimer = 0;
-            //    }
-            //}
+                sleeptimer ++;
+                if (sleeptimer > 5000 / C2S_THREAD_SLEEPINTERVAL)
+                {
+                    if (!threadMain.isAlive())  //< проверяем родительский поток
+                        break;
+                    syncSendMessageToClient (CMD_ONLINE);   //< «пингуем» клиента
+                    sleeptimer = 0;
+                }
+            }
         }
-        //catch (InterruptedException e) {e.printStackTrace();}
+        catch (InterruptedException e) {e.printStackTrace();}
         catch (IOException e)
         {
             connectionGettingClosed = true;
@@ -97,14 +96,12 @@ if (DEBUG) System.out.println("ClientHandler.readInputStreamUTF().s");
             System.out.print("\nClientHandler.readInputStreamUTF() : ошибка соединения.");
             //e.printStackTrace();
         }
-if (DEBUG) System.out.println("ClientHandler.readInputStreamUTF().e - "+msg);
         return msg;
     }// readInputStreamUTF ()
 
 
     private void runThreadClientToServer ()
     {
-if (DEBUG) System.out.println("ClientHandler.runThreadClientToServer().starts");
         String msg;
         while (!connectionGettingClosed && (msg = readInputStreamUTF()) != null)
         {
@@ -113,7 +110,7 @@ if (DEBUG) System.out.println("ClientHandler.runThreadClientToServer().starts");
 
             msg = msg.trim().toLowerCase();
 
-            if (msg.isEmpty() || msg.equals(CMD_ONLINE))
+            if (msg.isEmpty() || msg.equals (CMD_ONLINE))
                 continue;
 
             if (msg.equals (CMD_EXIT)) //< Приложение клиента закрывается.
@@ -130,7 +127,6 @@ if (DEBUG) System.out.println("ClientHandler.runThreadClientToServer().starts");
                 else
                 if (msg.equals (CMD_LOGIN)) // Клиент запросил регистрацию в чате
                 {
-if (DEBUG) System.out.println("ClientHandler.runThreadClientToServer().CMD_LOGIN");
                     onCmdLogin();
                 }
                 else
@@ -140,11 +136,6 @@ if (DEBUG) System.out.println("ClientHandler.runThreadClientToServer().CMD_LOGIN
                     {
                         onCmdChangeNickname();
                     }
-                    //else
-                    //if (msg.equals (CMD_WHOAMI)) // Клиент запросил соё имя
-                    //{
-                    //    syncSendMessageToClient(CMD_WHOAMI, nickname);
-                    //}
                     else //сообщения, которые нужно считать:
                     {
                         boolean boolSent = false;
@@ -155,9 +146,10 @@ if (DEBUG) System.out.println("ClientHandler.runThreadClientToServer().CMD_LOGIN
                         else
                         if (msg.equals (CMD_PRIVATE_MSG)) //< Клиент отправил личное сообщение клиенту.
                         {
-                            String nameTo = readInputStreamUTF();
-                            String message = readInputStreamUTF();
-                            boolSent = server.syncSendPrivateMessage (nameTo, message, this);
+                            boolSent = server.syncSendPrivateMessage (
+                                            readInputStreamUTF(), // Кому
+                                            readInputStreamUTF(), // Сообщение
+                                            this); // От кого
                         }
                         else throw new UnsupportedOperationException (
                                 "ERROR @ runThreadClientToServer() : незарегистрированное сообщение.");
@@ -171,50 +163,47 @@ if (DEBUG) System.out.println("ClientHandler.runThreadClientToServer().CMD_LOGIN
         System.out.print ("\nClientHandler.runThreadClientToServer() - поток threadClientToServer закрылся.");
         threadClientToServer = null;
         close();
-if (DEBUG) System.out.println("ClientHandler.runThreadClientToServer().ends");
+//if (DEBUG) System.out.println("ClientHandler.runThreadClientToServer().ends");
     }// runThreadClientToServer ()
 
 
 //Обработчик команды CMD_LOGIN.
     private void onCmdLogin ()
     {
-if (DEBUG) System.out.println("ClientHandler.onCmdLogin ()");
         if (nickname != null)
             throw new RuntimeException("ERROR @ runThreadClientToServer() : повторная регистрация?");
 
-        //
         nickname = server.syncValidateOnLogin (readInputStreamUTF(), readInputStreamUTF(), this);
-        if (nickname == null) //< null означает, что логин и/или пароль не прошли авторизацию
-        {
-            syncSendMessageToClient (CMD_BADNICKNAME, MSG_LOGINERROR_INVALID); //< Серверу не понравилось введённое пользователем имя.
+        if (nickname == null)
+        {   syncSendMessageToClient (CMD_BADLOGIN, PROMPT_LOGINERROR_INVALID);
         }
-        else if (nickname.isEmpty()) //< пустая строка означает, что учётка кем-то используется
-        {
-            nickname = null;
-            syncSendMessageToClient (CMD_BADNICKNAME, MSG_LOGINERROR_BUSY);
+        else if (nickname.isEmpty())
+        {   nickname = null;
+            syncSendMessageToClient (CMD_BADLOGIN, PROMPT_LOGINERROR_BUSY);
         }
         else //< ok
-        {
-            syncSendMessageToClient (CMD_LOGIN, nickname);
-            //sendClientsList();
+        {   syncSendMessageToClient (CMD_LOGIN, nickname);
             server.syncBroadcastMessage (ENTER_CHAT, this);
         }
-
     }// onCmdLogin ()
 
 
 //Обработчик команды CMD_CHANGE_NICKNAME.
     private void onCmdChangeNickname ()
     {
-        String newnickname = readInputStreamUTF();
-        if (server.syncChangeNickname (this, newnickname))
-        {
-            //server.syncBroadcastMessage (String.format (FORMAT_RENAMING_TO_, name), this);
-            nickname = newnickname;
-            //server.onClientsListChanged();
-            syncSendMessageToClient(CMD_CHANGE_NICKNAME, nickname);
+        String newnickname = readInputStreamUTF(),
+               result = server.syncChangeNickname (this, newnickname);
+
+        if (result == null)
+        {   syncSendMessageToClient (CMD_BADNICKNAME, PROMPT_RENAMING_ERROR);
         }
-        else syncSendMessageToClient (CMD_BADNICKNAME);
+        else if (result.isEmpty())
+        {   syncSendMessageToClient (CMD_BADNICKNAME, PROMPT_RENAMING_FAILED);
+        }
+        else
+        {   nickname = newnickname;
+            syncSendMessageToClient (CMD_CHANGE_NICKNAME, nickname);
+        }
     }// onCmdChangeNickname ()
 
 //Отсылаем клиенту новый список клиентов.
@@ -310,5 +299,6 @@ if (DEBUG) System.out.println("ClientHandler.onCmdLogin ()");
 
     public String getClientName ()  {   return nickname;  }
 
+    @Override public String toString ()   {   return "CH:"+ getClientName();   } //< для отладки
 
 }// class ClientHandler
