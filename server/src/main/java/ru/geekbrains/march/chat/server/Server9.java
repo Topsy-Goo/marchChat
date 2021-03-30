@@ -4,6 +4,9 @@ import java.io.IOException;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.security.InvalidParameterException;
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.SQLException;
 import java.util.*;
 
 import static ru.geekbrains.march.chat.server.ServerApp9.*;
@@ -30,22 +33,24 @@ public class Server9
     private String[] publicCliendsList;
     private Thread threadConsoleToClient;
     private boolean serverGettingOff;
-    private final Authentificator authentificator;
+    private Authentificator authentificator;
 
 
     public Server9 (int port)
     {
+        Connection connection = null;
         if (port < PORT_MIN || port > PORT_MAX)    throw new IllegalArgumentException();
 
         serverGettingOff = false;
         map = new HashMap<>();
-        authentificator = new JdbcAuthentificationProvider();
         syncUpdatePublicClientsList();
         this.port = port;
         SERVERNAME = SERVERNAME_BASE_ + serverNameCounter ++;
 
         try (ServerSocket servsocket = new ServerSocket (this.port))
-        {   threadConsoleToClient = new Thread(() -> runThreadConsoleToClient (servsocket));
+        {   connection = DriverManager.getConnection("jdbc:sqlite:marchchat.db");
+            authentificator = new JdbcAuthentificationProvider (connection);
+            threadConsoleToClient = new Thread(() -> runThreadConsoleToClient (servsocket));
             threadConsoleToClient.start();
             System.out.print (SESSION_START);
 
@@ -54,9 +59,27 @@ public class Server9
                 new ClientHandler9 (this, serverSideSocket);
             }
         }
+        catch (SQLException sqle)
+        {   sqle.printStackTrace();
+            throw new RuntimeException(); //< останавливаем работу всего сервера при ошибке подключения к БД
+        }
         catch (IOException ioe) {  ioe.printStackTrace();  }
-        finally  {  serverGettingDown();  }
-    }
+        finally
+        {   serverGettingDown();
+            disconnect (connection);
+        }
+    }// Server9 ()
+
+
+// Разрываем соединение с БД.
+    private void disconnect (Connection connection)
+    {
+        try
+        {   if (authentificator != null)    authentificator.close();
+            if (connection != null)  connection.close();
+        }
+        catch (SQLException | IOException e) { e.printStackTrace(); }
+    }// disconnect ()
 
 // Подготовка к «отключению» сервра.
     private void serverGettingDown ()

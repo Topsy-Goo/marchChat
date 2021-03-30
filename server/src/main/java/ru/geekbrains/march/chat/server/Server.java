@@ -4,6 +4,9 @@ import java.io.IOException;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.security.InvalidParameterException;
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.SQLException;
 import java.util.*;
 
 import static ru.geekbrains.march.chat.server.ServerApp.*;
@@ -22,9 +25,6 @@ public class Server
     private static int serverNameCounter = 0;
     public static final int PORT_MAX = 65535;
     public static final int PORT_MIN = 0;
-    //public static final boolean
-    //            VALIDATE_AND_ADD = true, VALIDATE_AND_RENAME = !VALIDATE_AND_ADD,
-    //            MODE_UPDATE = true, MODE_SILENT = !MODE_UPDATE;
     private final String SERVERNAME;
 
     private final int CONSOLE_THREAD_SLEEPINTERVAL = 250;
@@ -33,83 +33,60 @@ public class Server
     private final Map<String, ClientHandler> map;
     private String[] publicCliendsList;
     private Thread threadConsoleToClient;
-    //private final Thread threadMain;
     private boolean serverGettingOff;
-    private final Authentificator authentificator;
-
+    private Authentificator authentificator;
 
     public Server (int port)
     {
-        if (port < PORT_MIN || port > PORT_MAX)    throw new IllegalArgumentException();
+        Connection connection = null;
+        if (port < PORT_MIN || port > PORT_MAX)    throw new InvalidParameterException();
 
         serverGettingOff = false;
         map = new HashMap<>();
-        authentificator = new JdbcAuthentificationProvider();
-        //authentificator.add("1", "11", "u1111");
-        //authentificator.add("2", "22", "u2222");
-        //authentificator.add("3", "33", "u3333");
-        //authentificator.add("4", "44", "u4444");
-
         syncUpdatePublicClientsList();
         this.port = port;
-        //threadMain = Thread.currentThread();
         SERVERNAME = SERVERNAME_BASE_ + serverNameCounter ++;
 
-    // создали сокет на порте 8189 (нужно использовать любой свободный порт). Если порт занят,
-    // то получим исключение, но, скорее всего, порт 8189 будет свободен.
         try (ServerSocket servsocket = new ServerSocket (this.port))
         {
+            connection = DriverManager.getConnection("jdbc:sqlite:marchchat.db");
+            authentificator = new JdbcAuthentificationProvider (connection);
             threadConsoleToClient = new Thread(() -> runThreadConsoleToClient (servsocket));
             threadConsoleToClient.start();
             System.out.print (SESSION_START);
 
             while (!serverGettingOff)
-            {
-                System.out.print (WAITING_FOR_CLIENTS);
-    // ожидаем подключений (бесконечно, если подключений так и не будет). Если подключение придёт, то в
-    // socket окажется подключение к клиенту (клиент должен знать, что мы его ждём на порте 8189).
+            {   System.out.print (WAITING_FOR_CLIENTS);
                 Socket serverSideSocket = servsocket.accept();
-                //if (!serverGettingOff)
-                    new ClientHandler (this, serverSideSocket);
-                //else
-                //    serverSideSocket.close();
-
-    // цикл чтения байтов из входного потока (закоментируем этот фрагмент, чтобы он не мешал воспользоваться
-    // некоторыми усовершенствованиями, которые находястя в следующем за ним фрагменте)
-                //int x;
-                //while ((x = socket.getInputStream().read()) != -1)
-                //    System.out.print ((char)x);
-                /* На выходе мы получаем исключение, т.к. client завершился первым. В общем, это нормально. */
-
-/*  Необязательный шаг: оборачиваем потоки ввода и вывода в более удобные дата-потоки (это позволит нам,
-    например, обмен байтами заменить на обмен строками).
-    (Сейчас этот фрагмент закомментирован, т.к. мы перенесли работу с клиентом в отдельный класс. Кроме того,
-    мы заключили в цикл операцию подключения клиента, что в совокупности дало нам возможность подключать не
-    одного, а многих клиентов. Напомним, что ServerSocket служит для подключения многих клиентов, для каждого
-    из которых им создаётся Socket; для дальнейшей работы подключения ServerSocket не требуется.)
-*/              //DataInputStream dis = new DataInputStream (socket.getInputStream());
-                //DataOutputStream dos = new DataOutputStream (socket.getOutputStream());
-                //while (true)
-                //{
-                //    String s = dis.readUTF();
-                //    if (s.trim().equals("/exit")) //< эксперимент
-                //        break;
-                //    dos.writeUTF ("ECHO: "+s); //< эксперимент
-                //}
-            }//while
+                new ClientHandler (this, serverSideSocket);
+            }
+        }
+        catch (SQLException sqle)
+        {   sqle.printStackTrace();
+            throw new RuntimeException(); //< останавливаем работу всего сервера при ошибке подключения к БД
         }
         catch (IOException ioe)
-        {
-            ioe.printStackTrace();
+        {   ioe.printStackTrace();
             System.out.print (UNABLE_TOCREATE_HANDLER);
         }
         finally
-        {
-            serverGettingDown();
+        {   serverGettingDown();
+            disconnect (connection);
         }
     // (Закрытие ServerSocket не означает разрыв всех созданных соединений, а означает лишь невозможность
     // подключение новых клиентов.)
-    }// Server (int port)
+    }// Server ()
+
+
+// Разрываем соединение с БД.
+    private void disconnect (Connection connection)
+    {
+        try
+        {   if (authentificator != null)    authentificator.close();
+            if (connection != null)  connection.close();
+        }
+        catch (SQLException | IOException e) { e.printStackTrace(); }
+    }// disconnect ()
 
 
 // Подготовка к «отключению» сервра.

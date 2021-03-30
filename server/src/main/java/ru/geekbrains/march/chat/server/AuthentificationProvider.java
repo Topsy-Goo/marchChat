@@ -32,6 +32,9 @@ public class AuthentificationProvider implements Authentificator
         @Override public String toString () { return String.format (FORMAT_USER, login, password, nickname); }
     }// class User
 
+    @Override public void close ()
+    {
+    }
 
     public AuthentificationProvider (int capacity)
     {

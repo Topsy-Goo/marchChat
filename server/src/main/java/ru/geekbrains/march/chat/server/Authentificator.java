@@ -1,6 +1,8 @@
 package ru.geekbrains.march.chat.server;
 
-public interface Authentificator
+import java.io.Closeable;
+
+public interface Authentificator extends Closeable
 {
     String authenticate (String login, String password);
     boolean add (String lgn, String psw, String nick);
