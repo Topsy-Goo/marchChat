@@ -3,7 +3,6 @@ package ru.geekbrains.march.chat.server;
 import java.io.IOException;
 import java.net.ServerSocket;
 import java.net.Socket;
-import java.security.InvalidParameterException;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;
@@ -15,12 +14,13 @@ public class Server
 {
     private static final String
             FORMAT_NO_SUCH_USER = "\nКлиент %s отсутствует в чате.",
-            SERVERNAME_BASE_ = "ЧатСервер_",
+            SERVERNAME_BASE_ = "ЧатСервер-",
             SESSION_START = "\nНачало сессии.",
             WAITING_FOR_CLIENTS = "\n\tЖдём подклюение клиента... ",
             UNABLE_TOCREATE_HANDLER = "\nНе удалось создать ClientHandler.",
             FORMAT_RENAMING_TO_ = "(меняет имя на %s)",
-            LEFT_CHAT = "(покинул чат)"
+            FORMAT_LEFT_CHAT = "(%s вышел из чата)",
+            SERVER_IS_OFF = "\nСервер завершил работу."
             ;
     private static int serverNameCounter = 0;
     public static final int PORT_MAX = 65535;
@@ -30,29 +30,27 @@ public class Server
     private final int CONSOLE_THREAD_SLEEPINTERVAL = 250;
 
     private int port = 0;
-    private final Map<String, ClientHandler> map;
+    private Map<String, ClientHandler> map;
     private String[] publicCliendsList;
-    private Thread threadConsoleToClient;
+    //private Thread threadConsoleToClient;
     private boolean serverGettingOff;
     private Authentificator authentificator;
 
+
     public Server (int port)
     {
-        Connection connection = null;
-        if (port < PORT_MIN || port > PORT_MAX)    throw new InvalidParameterException();
+        if (port < PORT_MIN || port > PORT_MAX)    throw new IllegalArgumentException();
 
+        this.port = port;
+        SERVERNAME = SERVERNAME_BASE_ + serverNameCounter ++;
         serverGettingOff = false;
         map = new HashMap<>();
         syncUpdatePublicClientsList();
-        this.port = port;
-        SERVERNAME = SERVERNAME_BASE_ + serverNameCounter ++;
+        this.authentificator = new JdbcAuthentificationProvider();
 
-        try (ServerSocket servsocket = new ServerSocket (this.port))
+        try (ServerSocket servsocket = new ServerSocket (this.port);)
         {
-            connection = DriverManager.getConnection("jdbc:sqlite:marchchat.db");
-            authentificator = new JdbcAuthentificationProvider (connection);
-            threadConsoleToClient = new Thread(() -> runThreadConsoleToClient (servsocket));
-            threadConsoleToClient.start();
+            new Thread(() -> runThreadConsoleToClient (servsocket)).start();
             System.out.print (SESSION_START);
 
             while (!serverGettingOff)
@@ -61,131 +59,96 @@ public class Server
                 new ClientHandler (this, serverSideSocket);
             }
         }
-        catch (SQLException sqle)
-        {   sqle.printStackTrace();
-            throw new RuntimeException(); //< останавливаем работу всего сервера при ошибке подключения к БД
-        }
+        //catch (SQLException sqle)
+        //{   sqle.printStackTrace();
+        //    throw new RuntimeException(); //< останавливаем работу всего сервера при ошибке подключения к БД
+        //}
         catch (IOException ioe)
         {   ioe.printStackTrace();
             System.out.print (UNABLE_TOCREATE_HANDLER);
         }
         finally
-        {   serverGettingDown();
-            disconnect (connection);
+        {
+            if (authentificator != null)  authentificator = authentificator.close();
+            serverGettingDown();
+            System.out.print (SERVER_IS_OFF);
+            //(После закрытия ServerSocket'а открытые соединения продолжают работать, но создавать новые нет возможности.)
         }
-    // (Закрытие ServerSocket не означает разрыв всех созданных соединений, а означает лишь невозможность
-    // подключение новых клиентов.)
     }// Server ()
-
-
-// Разрываем соединение с БД.
-    private void disconnect (Connection connection)
-    {
-        try
-        {   if (authentificator != null)    authentificator.close();
-            if (connection != null)  connection.close();
-        }
-        catch (SQLException | IOException e) { e.printStackTrace(); }
-    }// disconnect ()
 
 
 // Подготовка к «отключению» сервра.
     private void serverGettingDown ()
     {
-        serverGettingOff = true;
         if (map != null) //< закрываем всех клиентов.
         {
             for (Map.Entry<String, ClientHandler> entry : map.entrySet())
-                entry.getValue().onServerDown();
+                entry.getValue().onServerDown (SERVERNAME);
+            map.clear();
+            map = null;
         }
     }// serverGettingDown ()
 
 
-/* (Пришлось лишить ClientHandler возможности общаться с клиентами через консоль из-за странного глюка:
- если клиент покидает чат, отправив серверу /exit, то этот метод падает и тащит за собой Server (что
- приводит к отключению остальных клиентов). Причина глюка пока не выяснена, но, видимо, дело в сканере
- или ещё каком-то общем ресурсе.)    //*/
     private void runThreadConsoleToClient (ServerSocket servsocket) //поток threadConsoleToClient
     {
         String msg;
-        int timer = 0;
-
         if (servsocket != null)
         try (Scanner sc = new Scanner(System.in))
         {
             while (!serverGettingOff)
-            //if (System.in.available() > 0)
-            {
-                msg = sc.nextLine().trim();
+            {   msg = sc.nextLine().trim();
 
                 if (!msg.isEmpty())
                 if (msg.equalsIgnoreCase(CMD_EXIT)) //< Сервер можно закрыть руками.
-                {
-                    serverGettingOff = true; //< так мы закрываем наш поток -- threadConsoleToClient
-                    servsocket.close(); //< а так освобождаем основной поток от чар метода accept().
-                    //new Socket (SERVER_ADDRESS, SERVER_PORT).close(); < этот способ закрытия приложения
-                    //      не вызывает исключения, но в данном случае servsocket.close() конечно лучше.
+                {   serverGettingOff = true;
+                    servsocket.close();
                 }
                 else if (msg.equalsIgnoreCase(CMD_PRIVATE_MSG))
-                {
-                    //String[] tokens = msg.split ("\\s", 3);
-                    //if (tokens.length > 2)
-                    //    syncSendPrivateMessage(tokens[1], tokens[2], null);
-                    System.out.print ("Личное сообщение для кого: ");
+                {   System.out.print ("Личное сообщение для кого: ");
                     String nameTo = sc.nextLine().trim();
                     System.out.print ("Текст сообщения: ");
                     String message = sc.nextLine();
                     System.out.print ('\n' +
-                            (syncSendPrivateMessage (nameTo, message, null)
-                            ? "Отправлено."
-                            : "Не отправлено."));
+                            (syncSendPrivateMessage (nameTo, message, null) ? "Отправлено." : "Не отправлено."));
                 }
                 else syncBroadcastMessage (msg, null);
             }
-            //else
-            //{
-            //    Thread.sleep(CONSOLE_THREAD_SLEEPINTERVAL);
-            //    timer ++;
-            //    if (timer > 5000 / CONSOLE_THREAD_SLEEPINTERVAL)
-            //    {
-            //        if (!threadMain.isAlive())  //< проверяем родительский поток
-            //            break;
-            //        timer = 0;
-            //    }
-            //}
         }
-        catch (/*InterruptedException |*/ IOException ex) {ex.printStackTrace();} //для sleep() | для available()
-        finally
-        {
-            serverGettingDown();
-            System.out.print ("\n(Поток Server.threadConsoleToClient закрылся.)");
-        }
+        catch (IOException ex) {ex.printStackTrace();}
+        finally  {  System.out.print ("\n(Поток Server.threadConsoleToClient закрылся.)");  }
     }// runThreadConsoleToClient ()
 
 
-//Проверяем имя клиента на уникальность и при необходимости добавляем его в список подключенных клиентов.
+//Проверяем логин и пароль клиента. (Никуда его не добавляем на этом этапе! Только возвращаем ему ник,
+// если авторизация верная.)
     public synchronized String syncValidateOnLogin (String login, String password, ClientHandler client)
     {
-        String nick = authentificator.authenticate (login, password);
-
-        if (nick != null)   //< значение null покажет клиенту, что логин и/или пароль не подошли
-        if (map.containsKey (nick))
-            nick = "";      //< пустая строка будет индикатором повторного входа в чат
-        else
-        {   map.put (nick, client);
-            syncUpdatePublicClientsList();
-            syncBroadcastMessage (CMD_CLIENTS_LIST_CHANGED, null);
-            //syncBroadcastMessage (ENTER_CHAT, client) не вызываем, т.к. сейчас у клиента nickname == null
-        }
+        String nick = (authentificator != null)
+                    ? authentificator.authenticate (login, password)
+                    : null; //< может вернуть null
+    //null - индикатор ошибки БД или того, что логин/пароль не подошли.
+    //пустая строка - индикатор повторного входа в чат
+        if (nick != null && map.containsKey (nick))
+            nick = "";
         return nick;
     }// syncValidateOnLogin ()
 
+//Реакция сервера на то, что юзер подтвердил получение ника и готовность присоединиться к чату.
+    public synchronized void addClientToChat (ClientHandler client)
+    {
+        if (client != null)
+        {   map.put (client.getClientName(), client);
+            syncUpdatePublicClientsList();
+            syncBroadcastMessage (CMD_CLIENTS_LIST_CHANGED, null);
+        }
+    }
 
 //Клиент запросил смену имени.
     public synchronized String syncChangeNickname (ClientHandler client, String newnickname)
     {
         String result = null;
-        if (client != null)
+        if (client != null && authentificator != null)
         {
             String prevnickname = client.getClientName();
             result = authentificator.rename (prevnickname, newnickname);
@@ -209,11 +172,8 @@ public class Server
         if (client != null  &&  map.remove (client.getClientName()) != null)
         {
             syncUpdatePublicClientsList();
-            //if (mode == MODE_UPDATE)
-            {
-                syncBroadcastMessage (CMD_CLIENTS_LIST_CHANGED, null);
-                syncBroadcastMessage (LEFT_CHAT, client);
-            }
+            syncBroadcastMessage (CMD_CLIENTS_LIST_CHANGED, null);
+            syncBroadcastMessage (String.format(FORMAT_LEFT_CHAT, client.getClientName()), null);
         }
     }// syncClientLogout ()
 
@@ -238,13 +198,10 @@ public class Server
             ClientHandler client = entry.getValue();
 
             if (msg.equalsIgnoreCase (CMD_CLIENTS_LIST_CHANGED))
-            {
                 boolSent = client.syncSendMessageToClient (CMD_CLIENTS_LIST_CHANGED);
-            }
             else
-            {
-                String name = (from != null) ? from.getClientName() : SERVERNAME; //< сообщение исходит от сервера (введено в консоли)
-                boolSent = client.syncSendMessageToClient(CMD_CHAT_MSG, name + ":\n\t" + msg);
+            {   String name = (from != null) ? from.getClientName() : SERVERNAME; //< сообщение исходит от сервера (введено в консоли)
+                boolSent = client.syncSendMessageToClient (CMD_CHAT_MSG, name, msg);
             }
         }
         return boolSent;
@@ -272,11 +229,9 @@ public class Server
                     else
                         boolSent = clientTo.syncSendMessageToClient (CMD_PRIVATE_MSG, nameFrom, message);
 
-                    //// если сообщение не от сервера, то дублируем его отправителю
-                    //// (серверу отправленные им личные сообщения не дублируем)
-                    //if (clientFrom != null)
-                    //    clientFrom.syncSendMessageToClient (CMD_PRIVATE_MSG, nameTo, message);
-
+                // (Приватные (личные) сообщения не дублируем тправителю, т.к. это нарушит работу механизма
+                //  сохранения истории чата -- придётся вводить в класс ChatMessage лишние поля. Сейчас клиенту
+                //  выводится его отправленное личное сообщение средствами Controller'а, что даже и более логично.)
                     break;
                 }
             }
@@ -286,9 +241,7 @@ public class Server
                 else
                 clientFrom.syncSendMessageToClient (String.format(FORMAT_NO_SUCH_USER, nameTo));
         }
-        else throw new InvalidParameterException (String.format("ERROR @ syncSendPrivateMessage():" +
-                            "\n\tnameTo = %s,\n\tmessage = %s,\n\tclientFrom = %s,\n\tnameFrom = %s.",
-                            nameTo, message, clientFrom, clientFrom.getClientName()));
+        else throw new IllegalArgumentException ("ERROR @ syncSendPrivateMessage(): invalid string passed in.");
         return boolSent;
     }// syncSendPrivateMessage ()
 
@@ -296,5 +249,6 @@ public class Server
 //Предоставляем публичный список участников чата всем желающим.
     public String[] getClientsList ()    {   return publicCliendsList;   }// getClientsList ()
 
+    public void print (String s) {System.out.print(s);}
 
 }// class Server

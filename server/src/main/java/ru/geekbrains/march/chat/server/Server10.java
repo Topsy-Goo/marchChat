@@ -3,7 +3,6 @@ package ru.geekbrains.march.chat.server;
 import java.io.IOException;
 import java.net.ServerSocket;
 import java.net.Socket;
-import java.security.InvalidParameterException;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;
@@ -29,16 +28,15 @@ public class Server10
     private final int CONSOLE_THREAD_SLEEPINTERVAL = 250;
 
     private int port = 0;
-    private final Map<String, ClientHandler10> map;
+    private Map<String, ClientHandler10> map;
     private String[] publicCliendsList;
-    private Thread threadConsoleToClient;
+    //private Thread threadConsoleToClient;
     private boolean serverGettingOff;
     private Authentificator authentificator;
 
 
     public Server10 (int port)
     {
-        Connection connection = null;
         if (port < PORT_MIN || port > PORT_MAX)    throw new IllegalArgumentException();
 
         serverGettingOff = false;
@@ -46,12 +44,12 @@ public class Server10
         syncUpdatePublicClientsList();
         this.port = port;
         SERVERNAME = SERVERNAME_BASE_ + serverNameCounter ++;
+        this.authentificator = new JdbcAuthentificationProvider();
 
         try (ServerSocket servsocket = new ServerSocket (this.port))
-        {   connection = DriverManager.getConnection("jdbc:sqlite:marchchat.db");
-            authentificator = new JdbcAuthentificationProvider (connection);
-            threadConsoleToClient = new Thread(() -> runThreadConsoleToClient (servsocket));
-            threadConsoleToClient.start();
+        {
+            authentificator = new JdbcAuthentificationProvider();
+            new Thread(()->runThreadConsoleToClient (servsocket)).start();
             System.out.print (SESSION_START);
 
             while (!serverGettingOff)
@@ -59,35 +57,28 @@ public class Server10
                 new ClientHandler10 (this, serverSideSocket);
             }
         }
-        catch (SQLException sqle)
-        {   sqle.printStackTrace();
-            throw new RuntimeException(); //< останавливаем работу всего сервера при ошибке подключения к БД
-        }
+        //catch (SQLException sqle)
+        //{   sqle.printStackTrace();
+        //    throw new RuntimeException(); //< останавливаем работу всего сервера при ошибке подключения к БД
+        //}
         catch (IOException ioe) {  ioe.printStackTrace();  }
         finally
-        {   serverGettingDown();
-            disconnect (connection);
+        {
+            if (authentificator != null)  authentificator = authentificator.close();
+            serverGettingDown();
         }
     }// Server9 ()
 
 
-// Разрываем соединение с БД.
-    private void disconnect (Connection connection)
-    {
-        try
-        {   if (authentificator != null)    authentificator.close();
-            if (connection != null)  connection.close();
-        }
-        catch (SQLException | IOException e) { e.printStackTrace(); }
-    }// disconnect ()
-
 // Подготовка к «отключению» сервра.
     private void serverGettingDown ()
     {
-        serverGettingOff = true;
         if (map != null)
-            for (Map.Entry<String, ClientHandler10> entry : map.entrySet())
-                entry.getValue().onServerDown();
+        {   for (Map.Entry<String, ClientHandler10> entry : map.entrySet())
+                entry.getValue().onServerDown (SERVERNAME);
+            map.clear();
+            map = null;
+        }
     }
 
 
@@ -117,7 +108,7 @@ public class Server10
             }
         }
         catch (IOException ex)  {  ex.printStackTrace();  }
-        finally  {  serverGettingDown();  }
+        finally  {  System.out.print ("\n(Поток Server.threadConsoleToClient закрылся.)");  }
     }
 
 // Авторизуем клиента по логину и паролю.
@@ -225,7 +216,7 @@ public class Server10
                 else
                 clientFrom.syncSendMessageToClient (String.format(FORMAT_NO_SUCH_USER, nameTo));
         }
-        else throw new InvalidParameterException ("ERROR @ syncSendPrivateMessage(): invalid string passed in.");
+        else throw new IllegalArgumentException ("ERROR @ syncSendPrivateMessage(): invalid string passed in.");
         return boolSent;
     }
 

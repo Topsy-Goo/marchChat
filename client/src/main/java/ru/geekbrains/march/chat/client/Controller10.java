@@ -15,7 +15,6 @@ import java.io.IOException;
 import java.io.Serializable;
 import java.net.Socket;
 import java.net.URL;
-import java.security.InvalidParameterException;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -106,7 +105,7 @@ public class Controller10 implements Initializable
 
         public ChatMessage (String name, String message, boolean input, boolean prv)
         {
-            if (!validateStrings (name, message))    throw new InvalidParameterException();
+            if (!validateStrings (name, message))    throw new IllegalArgumentException();
             this.name = name;
             text = message;
             inputMsg = input;
@@ -526,7 +525,7 @@ public class Controller10 implements Initializable
     void readChatStorage ()
     {
         stenographer = new MessageStenographer<> (login +".chat");
-        List<ChatMessage> cmlist = stenographer.read();
+        List<ChatMessage> cmlist = stenographer.getData();
 
         Platform.runLater(()->{
             txtareaMessages.clear(); //< очищаем окно чата (чтобы не мучаться, т.к. юзер может и под другой

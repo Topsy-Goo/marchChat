@@ -232,9 +232,9 @@ public class ClientHandler10
     }
 
 //Метод вызывается сервером.
-    public void onServerDown ()
+    public void onServerDown (String serverneme)
     {
-        syncSendMessageToClient (CMD_CHAT_MSG, SERVER_OFF);
+        syncSendMessageToClient (CMD_CHAT_MSG, serverneme, SERVER_OFF);
         syncSendMessageToClient (CMD_EXIT);
         server = null; //< чтобы никто не пытался вызывать методы сервера
         close();

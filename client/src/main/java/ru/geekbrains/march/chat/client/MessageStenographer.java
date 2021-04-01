@@ -1,7 +1,6 @@
 package ru.geekbrains.march.chat.client;
 
 import java.io.*;
-import java.security.InvalidParameterException;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -15,7 +14,7 @@ public class MessageStenographer<T extends Serializable> implements Stenographer
     public MessageStenographer (String filename)
     {
         if (filename == null || (filename = filename.trim()).isEmpty())
-            throw new InvalidParameterException ();
+            throw new IllegalArgumentException ();
 
         file = new File(filename);
         try
@@ -25,11 +24,10 @@ public class MessageStenographer<T extends Serializable> implements Stenographer
         {   file = null;
             //close();
             ioe.printStackTrace();
-            throw  new RuntimeException("ERROR @ MessageStenographer(): cannot create file.");
+            throw  new RuntimeException("ERROR : cannot create file.");
         }
-
         if (!file.isFile())
-            throw new InvalidParameterException("ERROR @ MessageStenographer(): not a file.");
+            throw new IllegalArgumentException ("ERROR : not a file.");
         this.filename = filename;
     }// MessageStenographer ()
 
@@ -46,6 +44,11 @@ public class MessageStenographer<T extends Serializable> implements Stenographer
             {   ioe.printStackTrace();
                 System.out.println("ERROR @ storeTextUTF(): unable write to file.");
             }
+            finally
+            {   filename = null;
+                file = null;
+                datalist = null;
+            }
         }
     }// close ()
 
@@ -54,19 +57,22 @@ public class MessageStenographer<T extends Serializable> implements Stenographer
 
 // Перезаписываем всю историю чата в файл. (У меня не получилось последовательно читать из файла объекты, т.к.
 // из ObjectInputStream почему-то извлекался только один (первый) объект. Пришлось выходить из положения.
-    @Override public List<T> read ()
+    @Override public List<T> getData ()
     {
+        if (datalist == null)
         if (file.canRead())
         try (ObjectInputStream ois = new ObjectInputStream (new FileInputStream (file));) // ObjectInputStream в close() закрывает и FileInputStream.
         {
             datalist = (List<T>) ois.readObject();
-            System.out.print("\nистория считана из "+ filename); //< для отладки
+            System.out.printf("\n\tистория считана из <%s>",filename); //< для отладки
         }
         catch (EOFException e) //< пустой файл?
         { datalist = new ArrayList<>(16);
         }
         catch (IOException | ClassNotFoundException e) {  e.printStackTrace();  }
         return datalist;
-    }// readTextUTF ()
+    }// getData ()
+
+    public void print (String s) {System.out.print(s);}
 
 }// class Stenographer

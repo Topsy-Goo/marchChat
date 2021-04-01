@@ -31,9 +31,10 @@
 			<HBox.margin><Insets right="5" left="5"/></HBox.margin>
 		</TextField>
 
-		<Button fx:id="buttonLogin"
-				onAction="#onactionLogin"
-				text="Войти"/>
+		<Button fx:id="buttonLogout"
+				onAction="#onactionLoginout"
+				visible="false"
+				text="Выйти"/>
 	</HBox>
 
 	<!-- ================= Элементы управления для ввода пароля. ==================== -->
@@ -49,6 +50,10 @@
 					   promptText="Введите пароль здесь.">
 			<HBox.margin><Insets right="5" left="5"/></HBox.margin>
 		</PasswordField>
+
+		<Button fx:id="buttonLogin"
+				onAction="#onactionLogin"
+				text="Войти"/>
 
 	</HBox>
 	<!-- ================= TextArea и ListView ноходятся в этом поясе. ============== -->

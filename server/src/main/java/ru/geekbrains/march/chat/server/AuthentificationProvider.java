@@ -1,6 +1,5 @@
 package ru.geekbrains.march.chat.server;
 
-import java.security.InvalidParameterException;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -22,7 +21,7 @@ public class AuthentificationProvider implements Authentificator
         public User (String lgn, String psw, String nick)
         {
             if (!validateStrings (SOFT_MODE, lgn, psw, nick))
-                throw new InvalidParameterException (
+                throw new IllegalArgumentException (
                     String.format("\nERROR @ AuthentificationProvider.add() : cannot create user with parameters " + FORMAT_USER, lgn, psw, nick));
 
             login = lgn.trim();        //< key для mapUsers
@@ -31,10 +30,6 @@ public class AuthentificationProvider implements Authentificator
         }
         @Override public String toString () { return String.format (FORMAT_USER, login, password, nickname); }
     }// class User
-
-    @Override public void close ()
-    {
-    }
 
     public AuthentificationProvider (int capacity)
     {
@@ -49,7 +44,7 @@ public class AuthentificationProvider implements Authentificator
         for (String s : lines)
         if (s == null || s.trim().isEmpty())
             if (mode == THROW_EXCEPTION)
-                throw new InvalidParameterException (
+                throw new IllegalArgumentException (
                     "ERROR @ validateString() : String must not be null, empty or blank.");
             else
                 return false;
@@ -122,5 +117,7 @@ public class AuthentificationProvider implements Authentificator
             boolOk = mapUsers.remove(login) != null;
         }
     }// remove ()
+
+    public Authentificator close ()   {   return null;   }
 
 }// class AuthentificationProvider

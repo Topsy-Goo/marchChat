@@ -6,7 +6,7 @@ import java.util.List;
 
 public interface Stenographer<T extends Serializable> extends Closeable
 {
-    List<T> read ();
+    List<T> getData ();
 
     void append (T t);
 

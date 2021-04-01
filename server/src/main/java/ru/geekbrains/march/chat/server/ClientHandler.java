@@ -9,20 +9,17 @@ import static ru.geekbrains.march.chat.server.ServerApp.*;
 
 public class ClientHandler
 {
-    private String nickname; //< После регистрации пользователя clientName == Controller.userName.
-    private final int C2S_THREAD_SLEEPINTERVAL = 100,
-                      IDLE_TIMER_INTERVAL = 120_000;
+    public static final int THREAD_SLEEPINTERVAL_250 = 250;
+    private String nickname;
     private boolean connectionGettingClosed = false;
 
     private Socket socket;
     private Server server;
     private DataInputStream dis;
     private DataOutputStream dos;
-    private Thread threadClientToServer,
-                   threadMain;
+    private Thread threadClientToServer, threadMain;
 
     private final static String
-            CONNECTION_ESTABLISHED = "\nСоединение с сервером установлено.",
             CLIENT_CREATED = "клиент создан.",
             FORMAT_UNABLE_SEND_MESSAGE_TO = "Не удалось отправить сообщение:\n\t%s",
             SERVER_OFF = "Сервер прекратил работу.",
@@ -35,7 +32,6 @@ public class ClientHandler
 
     public ClientHandler (Server serv, Socket serverSideSocket)
     {
-//if (DEBUG) System.out.println("ClientHandler.ClientHandler().s");
         if (serverSideSocket == null || serv == null)
             throw new IllegalArgumentException();
 
@@ -43,129 +39,104 @@ public class ClientHandler
         this.socket = serverSideSocket;
         this.threadMain = Thread.currentThread();
         try
-        {
-            dis = new DataInputStream (socket.getInputStream()); //< IOException
-            dos = new DataOutputStream (socket.getOutputStream()); //< IOException
-
+        {   dis = new DataInputStream (socket.getInputStream());
+            dos = new DataOutputStream (socket.getOutputStream());
             threadClientToServer = new Thread(() -> runThreadClientToServer());
             threadClientToServer.start();
-            syncSendMessageToClient (CMD_CHAT_MSG, CONNECTION_ESTABLISHED);
+            syncSendMessageToClient (CMD_CONNECTED);
         }
         catch (IOException ioe)
-        {
-            close();
+        {   close();
             ioe.printStackTrace();
         }
         System.out.print (CLIENT_CREATED);
-//if (DEBUG) System.out.println("ClientHandler.ClientHandler().e");
     }//ClientHandler (Socket)
-
 
     private String readInputStreamUTF ()
     {
-        int sleeptimer = 0;
+        //int sleeptimer = 0;
         String msg = null;
         try
-        {
-            while (!connectionGettingClosed)
-            if (dis.available() > 0)
+        {   while (!connectionGettingClosed)
+            //if (dis.available() > 0)
             {
                 msg = dis.readUTF();
+                System.out.print(".");
                 break;
             }
-            else //Такой же блок есть в Controller.readInputStreamUTF(). Там я описал причину,
-            {    // по которой оставил этот блок без изменений.
-                Thread.sleep(C2S_THREAD_SLEEPINTERVAL);
-
-            //Раз в 5 сек. проверяем, не работает ли наш поток впустую.
-                sleeptimer ++;
-                if (sleeptimer > 5000 / C2S_THREAD_SLEEPINTERVAL)
-                {
-                    if (!threadMain.isAlive())  //< проверяем родительский поток
-                        break;
-                    syncSendMessageToClient (CMD_ONLINE);   //< «пингуем» клиента
-                    sleeptimer = 0;
-                }
-            }
+            //else
+            //{   Thread.sleep(THREAD_SLEEPINTERVAL_250);
+            //    sleeptimer ++;
+            //    if (sleeptimer > 5000 / THREAD_SLEEPINTERVAL_250)
+            //    {
+            //        if (!threadMain.isAlive())
+            //            break;
+            //        syncSendMessageToClient (CMD_ONLINE);   //< «пингуем» клиента
+            //        sleeptimer = 0;
+            //    }
+            //}
         }
-        catch (InterruptedException e) {e.printStackTrace();}
+        //catch (InterruptedException e) {e.printStackTrace();}
         catch (IOException e)
-        {
-            connectionGettingClosed = true;
+        {   connectionGettingClosed = true;
             msg = null;
-            System.out.print("\nClientHandler.readInputStreamUTF() : ошибка соединения.");
-            //e.printStackTrace();
+            e.printStackTrace();
         }
         return msg;
     }// readInputStreamUTF ()
-
 
     private void runThreadClientToServer ()
     {
         String msg;
         while (!connectionGettingClosed && (msg = readInputStreamUTF()) != null)
         {
-    // Я считаю, что 2 цикла while здесь не подходят, т.к. у ClientHandler'а есть (или могут появиться)
-    // команды, которые он должен обрабатывать независимо от состояния регистрации клиента.
-
             msg = msg.trim().toLowerCase();
 
-            if (msg.isEmpty() || msg.equals (CMD_ONLINE))
+            if (msg.isEmpty()/* || msg.equals (CMD_ONLINE)*/)
                 continue;
 
-            if (msg.equals (CMD_EXIT)) //< Приложение клиента закрывается.
-            {
-                connectionGettingClosed = true;
-            }
+            if (msg.equals (CMD_EXIT))  onCmdExit();
             else
             if (server != null) //< если сервер ещё не упал
             {
-                if (msg.equals (CMD_CLIENTS_LIST)) //< клиент запросил список участников чата
-                {
-                    onCmdClientsList();
-                }
+                if (msg.equals (CMD_CLIENTS_LIST))  onCmdClientsList();
                 else
-                if (msg.equals (CMD_LOGIN)) // Клиент запросил регистрацию в чате
-                {
-                    onCmdLogin();
-                }
+                if (msg.equals (CMD_LOGIN))  onCmdLogin();
                 else
                 if (nickname != null) //< сообщения только для зарегистрированного клиента
-                {
-                    if (msg.equals (CMD_CHANGE_NICKNAME)) // Клиент запросил смену имени
+                if (msg.equals (CMD_LOGIN_READY))   onCmdLoginReady();
+                else
+                if (msg.equals (CMD_CHANGE_NICKNAME))   onCmdChangeNickname();
+                else
+                {   boolean boolSent = false;
+                    if (msg.equals (CMD_CHAT_MSG))
+                        boolSent = server.syncBroadcastMessage (readInputStreamUTF(), this);
+                    else
+                    if (msg.equals (CMD_PRIVATE_MSG)) //< Клиент отправил личное сообщение клиенту.
                     {
-                        onCmdChangeNickname();
+                        boolSent = server.syncSendPrivateMessage (
+                                        readInputStreamUTF(), // Кому
+                                        readInputStreamUTF(), // Сообщение
+                                        this); // От кого
                     }
-                    else //сообщения, которые нужно считать:
-                    {
-                        boolean boolSent = false;
-                        if (msg.equals (CMD_CHAT_MSG))
-                        {
-                            boolSent = server.syncBroadcastMessage (readInputStreamUTF(), this);
-                        }
-                        else
-                        if (msg.equals (CMD_PRIVATE_MSG)) //< Клиент отправил личное сообщение клиенту.
-                        {
-                            boolSent = server.syncSendPrivateMessage (
-                                            readInputStreamUTF(), // Кому
-                                            readInputStreamUTF(), // Сообщение
-                                            this); // От кого
-                        }
-                        else throw new UnsupportedOperationException (
-                                "ERROR @ runThreadClientToServer() : незарегистрированное сообщение.");
+                    else throw new UnsupportedOperationException (
+                            "ERROR @ runThreadClientToServer() : незарегистрированное сообщение.");
 
-                        if (!boolSent)
-                            syncSendMessageToClient(String.format (FORMAT_UNABLE_SEND_MESSAGE_TO, msg));
-                    }
+                    if (!boolSent)
+                        syncSendMessageToClient(String.format (FORMAT_UNABLE_SEND_MESSAGE_TO, msg));
                 }
             }
         }//while
-        System.out.print ("\nClientHandler.runThreadClientToServer() - поток threadClientToServer закрылся.");
+        System.out.print ("\nClientHandler.runThreadClientToServer() - поток закрылся."); //для отладки
         threadClientToServer = null;
         close();
-//if (DEBUG) System.out.println("ClientHandler.runThreadClientToServer().ends");
     }// runThreadClientToServer ()
 
+//Обработчик команды CMD_EXIT
+    private void onCmdExit ()
+    {
+        connectionGettingClosed = true;
+    }// onCmdExit ()
 
 //Обработчик команды CMD_LOGIN.
     private void onCmdLogin ()
@@ -183,10 +154,15 @@ public class ClientHandler
         }
         else //< ok
         {   syncSendMessageToClient (CMD_LOGIN, nickname);
-            server.syncBroadcastMessage (ENTER_CHAT, this);
         }
     }// onCmdLogin ()
 
+// Обработчик команды CMD_LOGIN_READY.
+    private void onCmdLoginReady ()
+    {
+        server.addClientToChat (this);
+        server.syncBroadcastMessage (ENTER_CHAT, this);
+    }
 
 //Обработчик команды CMD_CHANGE_NICKNAME.
     private void onCmdChangeNickname ()
@@ -211,94 +187,75 @@ public class ClientHandler
     {
         String[] clientslist = server.getClientsList();
         if (clientslist != null)
-        {
-            syncSendMessageToClient (CMD_CLIENTS_LIST);
+        {   syncSendMessageToClient (CMD_CLIENTS_LIST);
             syncSendMessageToClient (String.valueOf (clientslist.length));
             syncSendMessageToClient (clientslist);
         }
     }// sendClientsList ()
-
 
 //Обработчик команды CMD_CLIENTS_LIST.
     private void onCmdClientsList ()
     {
         String[] clientslist = server.getClientsList();
         if (clientslist != null)
-        {
-            syncSendMessageToClient (CMD_CLIENTS_LIST);
+        {   syncSendMessageToClient (CMD_CLIENTS_LIST);
             syncSendMessageToClient (String.valueOf (clientslist.length));
             syncSendMessageToClient (clientslist);
         }
     }// onCmdClientsList ()
-
 
 //(Вспомогательная.)
     public synchronized boolean syncSendMessageToClient (String ... lines)
     {
         boolean boolSent = false;
         if (lines != null  &&  lines.length > 0  &&  dos != null)
-        {
-            try
-            {
-                for (String msg : lines)
-                    dos.writeUTF(msg);
-                boolSent = true;
-            }
-            catch (IOException e)
-            {
-                connectionGettingClosed = true;
-                System.out.print ("\nClientHandler.syncSendMessageToClient() : ошибка соединения.");
-                //e.printStackTrace();
-            }
+        try
+        {   for (String msg : lines)
+                dos.writeUTF(msg);
+            boolSent = true;
+        }
+        catch (IOException e)
+        {   connectionGettingClosed = true;
+            e.printStackTrace();
         }
         return boolSent;
     }// syncSendMessageToClient ()
 
-
-// (Этот метод вызывается при завершении к.-л. потоком при обработке им сообщения /exit.)
+// Закрытие соединения.
     private void close ()
     {
         connectionGettingClosed = true;
         if (server != null)
-        {
-            server.syncClientLogout(this);
-            //server.syncBroadcastMessage (LEFT_CHAT, this);
+        {   server.syncClientLogout(this);
             server = null;
         }
         try
-        {   //syncSendMessageToClient (CMD_EXIT); < не нужно это здесь вызывать, т.к. мы сейчас вызываем close() в
-            //      двух случаях: по приходе от клиента команды CMD_EXIT, и в onServerDown(). onServerDown() сам
-            //      сам шлёт клиенту сообщение CMD_EXIT. Вроде, этого достаточно.
-
-            if (threadClientToServer != null)   threadClientToServer.join(1000);
-        // (Оказывается, закрытие Socket'а приводит к закрытию созданных им InputStream и OutputStream.)
+        {   if (threadClientToServer != null)   threadClientToServer.join(1000);
             if (socket != null && !socket.isClosed())   socket.close();
         }
         catch (InterruptedException | IOException e) { e.printStackTrace(); }
         finally
-        {
-            threadClientToServer = null;
+        {   threadClientToServer = null;
             socket = null;
             dos = null;
             dis = null;
-            System.out.printf ("\n(ClientHandler.close() : Клиент %s закрылся.)\n", nickname);
+            System.out.printf ("\n(ClientHandler.close() : клиент %s закрылся.)\n", nickname); //для отладки
             nickname = null;
         }
     }// close ()
 
-
-//Метод вызывается сервером (предположительно).
-    public void onServerDown ()
+//Метод вызывается сервером.
+    public void onServerDown (String servername)
     {
-        syncSendMessageToClient (CMD_CHAT_MSG, SERVER_OFF);
+        syncSendMessageToClient (CMD_CHAT_MSG, servername, SERVER_OFF);
         syncSendMessageToClient (CMD_EXIT);
         server = null; //< чтобы никто не пытался вызывать методы сервера
         close();
     }// onServerDown ()
 
-
     public String getClientName ()  {   return nickname;  }
 
     @Override public String toString ()   {   return "CH:"+ getClientName();   } //< для отладки
 
+    public void print (String s) {System.out.print(s);}
 }// class ClientHandler
