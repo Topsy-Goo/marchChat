@@ -158,7 +158,7 @@ public class JdbcAuthentificationProvider implements Authentificator
 
 
 //(Вспомогательная.) Проверяет строку на пригодность для использования в качестве логина, пароля, ника.
-    private static boolean validateStrings (String ... lines)
+    public static boolean validateStrings (String ... lines)
     {
         if (lines != null)
         for (String s : lines)

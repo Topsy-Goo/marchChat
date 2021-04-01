@@ -1,0 +1,72 @@
+package ru.geekbrains.march.chat.client;
+
+import java.io.*;
+import java.security.InvalidParameterException;
+import java.util.ArrayList;
+import java.util.List;
+
+public class MessageStenographer<T extends Serializable> implements Stenographer<T>
+{
+    public static final boolean APPEND = true, REPLACE = !APPEND;
+    private String filename;
+    private File file;
+    private List<T> datalist; //< собственно история чата
+
+    public MessageStenographer (String filename)
+    {
+        if (filename == null || (filename = filename.trim()).isEmpty())
+            throw new InvalidParameterException ();
+
+        file = new File(filename);
+        try
+        {   file.createNewFile();   //< создаёт файл, только если он не существует
+        }
+        catch (IOException ioe)
+        {   file = null;
+            //close();
+            ioe.printStackTrace();
+            throw  new RuntimeException("ERROR @ MessageStenographer(): cannot create file.");
+        }
+
+        if (!file.isFile())
+            throw new InvalidParameterException("ERROR @ MessageStenographer(): not a file.");
+        this.filename = filename;
+    }// MessageStenographer ()
+
+// Сейчас метод только записывает историю чата в файл.
+    @Override public void close ()
+    {
+        if (datalist != null && file != null && file.canWrite())
+        {
+            try (ObjectOutputStream oos = new ObjectOutputStream (new FileOutputStream (file, REPLACE))) // ObjectOutputStream в close() закрывает и FileOutputStream.
+            {
+                oos.writeObject (datalist);
+            }
+            catch (IOException ioe)
+            {   ioe.printStackTrace();
+                System.out.println("ERROR @ storeTextUTF(): unable write to file.");
+            }
+        }
+    }// close ()
+
+// Добавляем одно сообщение к истории чата.
+    @Override public void append (T t)   {  if (t != null)  datalist.add(t);  }
+
+// Перезаписываем всю историю чата в файл. (У меня не получилось последовательно читать из файла объекты, т.к.
+// из ObjectInputStream почему-то извлекался только один (первый) объект. Пришлось выходить из положения.
+    @Override public List<T> read ()
+    {
+        if (file.canRead())
+        try (ObjectInputStream ois = new ObjectInputStream (new FileInputStream (file));) // ObjectInputStream в close() закрывает и FileInputStream.
+        {
+            datalist = (List<T>) ois.readObject();
+            System.out.print("\nистория считана из "+ filename); //< для отладки
+        }
+        catch (EOFException e) //< пустой файл?
+        { datalist = new ArrayList<>(16);
+        }
+        catch (IOException | ClassNotFoundException e) {  e.printStackTrace();  }
+        return datalist;
+    }// readTextUTF ()
+
+}// class Stenographer
