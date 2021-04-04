@@ -17,6 +17,8 @@ import java.net.Socket;
 import java.net.URL;
 import java.time.LocalDateTime;
 import java.util.*;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 import static ru.geekbrains.march.chat.client.Main.WNDTITLE_APPNAME;
 import static ru.geekbrains.march.chat.server.ClientHandler.THREAD_SLEEPINTERVAL_250;
@@ -66,8 +68,6 @@ public class Controller implements Initializable
                 ANSWER_NO = false, ANSWER_YES = !ANSWER_NO,
                 TIPS_ON = true, TIPS_OFF = !TIPS_ON
                 ;
-    //private final int MAINLOOP_SLEEPINTERVAL = 250;
-
     private Socket clientSideSocket;
     private DataInputStream dis;
     private DataOutputStream dos;
@@ -162,7 +162,7 @@ public class Controller implements Initializable
         //});
     }// updateUserInterface ()
 
-// Подключение к серверу + создание и запуск потока для обработки сообщений от сервера.
+// Подключение к серверу.
     private boolean connect ()
     {
         boolean boolOk = false;
@@ -182,13 +182,11 @@ public class Controller implements Initializable
         return boolOk;
     }// connect ()
 
-//Закрытие сокета и обнуление связанных с ним переменных. + Внесение изменений в
-// интерфейс (чтобы юзер не мог пользоваться чатом).
+//Закрытие сокета и обнуление связанных с ним переменных.
     private void disconnect ()
     {
         if (clientSideSocket != null && !clientSideSocket.isClosed())
-        {
-            try { clientSideSocket.close(); }
+        {   try { clientSideSocket.close(); }
             catch(IOException e) {e.printStackTrace();}
             print("\ndisconnect() - соединение разорвано.");
         }
@@ -198,19 +196,18 @@ public class Controller implements Initializable
     }// disconnect ()
 
 //--------------------------------------------------- потоки и очередь
-//Main Loop.
-    private void messageDispatcher ()
+// Обрабатываем сообщения, находящиеся в очереди inputqueue.
+    private void messageDispatcher () //Main Loop.
     {
-/*  Фрагмент описания для Platform.runLater():
-    Platform.runLater запускает Runnable в потоке JavaFX в неопределенное время в будущем.
-    Этот метод может быть вызван из любого потока.
-    Он отправит Runnable в очередь событий, а затем немедленно вернется к вызывающему.
-    Runnables выполняются в том порядке, в котором они размещены.
-!!!!!  Runnable, переданный в метод runLater, будет выполнен до того, как любой Runnable будет передан в
-      последующий вызов runLater.
-    Если этот метод вызывается после завершения работы среды выполнения JavaFX, вызов будет проигнорирован.
+/* (машинный перевод фрагмента комментария к методу Platform.runLater()):
 
-!!!!  ПРИМЕЧАНИЕ: приложениям следует избегать переполнения JavaFX слишком большим количеством ожидающих
+    … запускает Runnable в потоке JavaFX в неопределенное время в будущем. Этот метод может быть вызван
+     из любого потока. Он отправит Runnable в очередь событий, а затем немедленно вернется к вызывающему.
+     Runnables выполняются в том порядке, в котором они размещены.
+!!!! Runnable, переданный в метод runLater, будет выполнен до того, как любой Runnable будет передан в
+     последующий вызов runLater. …
+
+!!!! … ПРИМЕЧАНИЕ: приложениям следует избегать переполнения JavaFX слишком большим количеством ожидающих
      выполнения Runnables. В противном случае приложение может перестать отвечать. Приложениям рекомендуется
      объединять несколько операций в меньшее количество вызовов runLater. По возможности, длительные операции
      должны выполняться в фоновом потоке, освобождая поток приложения JavaFX для операций с графическим
@@ -222,24 +219,34 @@ public class Controller implements Initializable
         while (!chatGettingClosed)
         {
             if (!inputqueue.isEmpty())
-                Platform.runLater(()->{  chatGettingClosed = !queuePoll();  });
+            {
+                Platform.runLater(()->{
+                    queuePoll();
+                    //chatGettingClosed = !queuePoll(); < здесь оказывается нельзя делать так (вызов
+                    // перестаёт работать корректно -- обрабатывает пару сообщений и перестаёт работать)
+                });
+            }
             else
-            try
-            {   if (!threadParent.isAlive())
-                    throw new InterruptedException ("Кажется, родительский поток завершился…");
-        //экспериментальным путём установлено, что приложение не может нормально работать без пауз
-        //(Прошу обратить внимание, что доп.потоки максимально, насколько это возможно, изолированы от
-        // потока JavaFX, а используемый здесь вызов «Platform.runLater» единственный на всё приложение.)
-                Thread.sleep (THREAD_SLEEPINTERVAL_250);
+            {
+                try
+                {   if (!threadParent.isAlive())
+                    {
+                        throw new InterruptedException ("Кажется, родительский поток завершился…");
+                    }
+            //экспериментальным путём установлено, что приложение не может нормально работать без пауз
+            //(Прошу обратить внимание, что доп.потоки максимально, насколько это возможно, изолированы от
+            // потока JavaFX, а используемый здесь вызов «Platform.runLater» единственный на всё приложение.)
+                    Thread.sleep (THREAD_SLEEPINTERVAL_250);
+                }
+                catch (InterruptedException e)
+                {   e.printStackTrace();
+                    chatGettingClosed = true;
+                    System.out.print("\n\tmessageDispatcher() : "+EMERGENCY_EXIT_FROM_CHAT);
+                    prompt = EMERGENCY_EXIT_FROM_CHAT;
+                    break;
+                }
+                //Platform.runLater(()->{  System.out.print("_"); });
             }
-            catch (InterruptedException e)
-            {   e.printStackTrace();
-                chatGettingClosed = true;
-                System.out.print("\n\tmessageDispatcher() : "+EMERGENCY_EXIT_FROM_CHAT);
-                prompt = EMERGENCY_EXIT_FROM_CHAT;
-                break;
-            }
-            //Platform.runLater(()->{  System.out.print("_"); });
         }
         closeSession (prompt);
         //Platform.runLater(()->{
@@ -310,7 +317,7 @@ public class Controller implements Initializable
             for (String s : lines)
                 if (!inputqueue.offer (s))
                     throw new RuntimeException ("ERROR : unable to offer message.");
-            if (!DEBUG)
+            if (DEBUG)
             {   print("\n\tin«");
                 for (int i=0,n=lines.length;   i<n;   i++)    print(((i>0)?" | ":"")+lines[i]);
                 print("»");
@@ -326,33 +333,36 @@ public class Controller implements Initializable
         synchronized (syncQue)
         {
             if ((msg = inputqueue.poll()) != null)
-            switch (msg)
-            {   //case CMD_ONLINE:    sendMessageToServer (CMD_ONLINE);
-                //    break;
-                case CMD_CHAT_MSG:   boolOk = onCmdChatMsg();
-                    break;
-                case CMD_CLIENTS_LIST_CHANGED:  boolOk = sendMessageToServer (CMD_CLIENTS_LIST);
-                    break;
-                case CMD_CLIENTS_LIST:  boolOk = onCmdClientsList();
-                    break;
-                case CMD_LOGIN:    boolOk = onCmdLogIn ();
-                    break;
-                case CMD_BADLOGIN:  boolOk = onCmdBadLogin();
-                    break;
-                case CMD_CHANGE_NICKNAME:   boolOk = onCmdChangeNickname();
-                    break;
-                case CMD_BADNICKNAME:    boolOk = onCmdBadNickname();
-                    break;
-                case CMD_EXIT:    boolOk = onCmdExit (PROMPT_YOU_ARE_LOGED_OFF);
-                    break;
-                case CMD_PRIVATE_MSG:   boolOk = onCmdPrivateMsg();
-                    break;
-                case CMD_CONNECTED:   boolOk = onCmdConnected();
-                    break;
-                default:   throw new UnsupportedOperationException ("ERROR : незарегистрированное сообщение: "+ msg);
-            }//switch
-            if (DEBUG) print ("\n\tpoll : "+ msg);
+            {
+                switch (msg)
+                {   //case CMD_ONLINE:    sendMessageToServer (CMD_ONLINE);
+                    //    break;
+                    case CMD_CHAT_MSG:   boolOk = onCmdChatMsg();
+                        break;
+                    case CMD_CLIENTS_LIST_CHANGED:  boolOk = sendMessageToServer (CMD_CLIENTS_LIST);
+                        break;
+                    case CMD_CLIENTS_LIST:  boolOk = onCmdClientsList();
+                        break;
+                    case CMD_LOGIN:    boolOk = onCmdLogIn ();
+                        break;
+                    case CMD_BADLOGIN:  boolOk = onCmdBadLogin();
+                        break;
+                    case CMD_CHANGE_NICKNAME:   boolOk = onCmdChangeNickname();
+                        break;
+                    case CMD_BADNICKNAME:    boolOk = onCmdBadNickname();
+                        break;
+                    case CMD_EXIT:    boolOk = onCmdExit (PROMPT_YOU_ARE_LOGED_OFF);
+                        break;
+                    case CMD_PRIVATE_MSG:   boolOk = onCmdPrivateMsg();
+                        break;
+                    case CMD_CONNECTED:   boolOk = onCmdConnected();
+                        break;
+                    default:   throw new UnsupportedOperationException ("ERROR queuePoll(): незарегистрированное сообщение: "+ msg);
+                }//switch
+                if (DEBUG) print ("\n\tpoll : "+ msg);
+            }
         }
+        if (DEBUG && !boolOk) print ("ERROR @ queuePoll(): boolOk = false.");
         return boolOk;
     }// queuePoll ()
 //------------------------- обработчики сетевых команд ----------------------------
@@ -523,45 +533,41 @@ public class Controller implements Initializable
 
 //------------------------- обработчики команд интерфейса ----------------------------
 
-// Обработка ввода пользователем логина и пароля для входа чат, или выход из чата (метод вызывается по
-// нажатию кнопки «Вход/Выход».
+// Обработка ввода пользователем логина и пароля для входа чат.
     @FXML public void onactionLogin (ActionEvent actionEvent)
     {
-        //Platform.runLater(()->{
-        //    if (loginState == LOGED_OFF)
-            {
-                String login = txtfieldUsernameField.getText(),
-                       password = txtfieldPassword.getText();
-                boolean badLogin = login == null || login.isEmpty();
+        String login = txtfieldUsernameField.getText(),
+               password = txtfieldPassword.getText();
+        boolean badLogin = login == null || login.isEmpty();
 
-                if (badLogin || password == null || password.isEmpty())
-                {
-                    alertWarning (ALERT_HEADER_BAD_NICKNAME, PROMPT_BAN_NICKNAME_SPECIFIED);
-                    if (badLogin)   txtfieldUsernameField.requestFocus();
-                    else            txtfieldPassword.requestFocus();
-                }
-                else if (!(chatGettingClosed = !connect()))
-                {
-                    inputqueue = new LinkedList<>();
+        if (badLogin || password == null || password.isEmpty())
+        {
+            alertWarning (ALERT_HEADER_BAD_NICKNAME, PROMPT_BAN_NICKNAME_SPECIFIED);
+            if (badLogin)   txtfieldUsernameField.requestFocus();
+            else            txtfieldPassword.requestFocus();
+        }
+        else if (!(chatGettingClosed = !connect()))
+        {
+            inputqueue = new LinkedList<>();
 
-                    threadIntputStream = new Thread(() -> runTreadInputStream());
-                    threadIntputStream.start();
+            threadIntputStream = new Thread(() -> runTreadInputStream());
+            threadIntputStream.start();
 
-                    threadMainLoop = new Thread(() -> messageDispatcher());
-                    threadMainLoop.start(); //< входим в Main Loop.
+            threadMainLoop = new Thread(() -> messageDispatcher());
+            threadMainLoop.start(); //< входим в Main Loop.
 
-                    this.login = login; //< запоминаем логин, под которым регистрируемся (для имени файла)
-                    sendMessageToServer (CMD_LOGIN, this.login, password);
-                    //chatGettingClosed = false;
-                    //threadMainLoop = new Thread(this::messageDispatcher);
-                    //threadMainLoop.start(); //< входим в Main Loop.
-                }
-                else txtareaMessages.setText (PROMPT_UNABLE_TO_CONNECT);
-            }
-        //});
+            this.login = login; //< запоминаем логин, под которым регистрируемся (для имени файла)
+            sendMessageToServer (CMD_LOGIN, this.login, password);
+            //chatGettingClosed = false;
+            //threadMainLoop = new Thread(this::messageDispatcher);
+            //threadMainLoop.start(); //< входим в Main Loop.
+        }
+        else txtareaMessages.setText (PROMPT_UNABLE_TO_CONNECT);
     }// onactionLogin ()
 
-// Кнопка «Выход» (появляется вместо кнопки «Вход»).
+// Кнопка «Выход». Пришлось отказаться от использования одной кнопки для входа в чат и выхода из чата, т.к.
+// JavaFX даже Platform.runLater нормально не может в очередь поставить и в результате нажатия на кнопку
+// «Вход/Выход» обрабатывались беспорядочно.
     @FXML public void onactionLoginout (ActionEvent actionEvent)
     {
         closeSession (PROMPT_YOU_ARE_LOGED_OFF);
@@ -648,7 +654,7 @@ public class Controller implements Initializable
         }
         catch (IOException e) { alertWarning (ALERT_HEADER_ERROR, PROMPT_UNABLE_TO_SEND_MESSAGE); }
         return boolSent;
-    }// sendMessageToServer () yncS yncS
+    }// sendMessageToServer ()
 
 // Стандартное окно сообщения с кнопкой Close.
     public static void alertWarning (String header, String msg)
@@ -721,4 +727,4 @@ public class Controller implements Initializable
     public void print (String s) {System.out.print(s);}
 }// class Controller
 
-// • если попробовать войти вчат при выключенном сервере, то потом не получается в него войти до перезапуска клиента.
+// TODO • если попробовать войти вчат при выключенном сервере, то потом не получается в него войти до перезапуска клиента.

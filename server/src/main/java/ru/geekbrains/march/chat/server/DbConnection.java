@@ -27,7 +27,7 @@ public class DbConnection
             throw new RuntimeException();
         }
         catch (ClassNotFoundException e)
-        {   System.out.printf("\nERROR @ JdbcAuthentificationProvider(): Class «%s» not found.", CLASS_NAME);
+        {   System.out.printf("\nERROR @ DbConnection(): Class «%s» not found.", CLASS_NAME);
             e.printStackTrace();
             throw new RuntimeException("\nCannot create object DbConnection.");
         }

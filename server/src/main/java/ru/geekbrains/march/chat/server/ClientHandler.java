@@ -49,34 +49,33 @@ public class ClientHandler
         {   close();
             ioe.printStackTrace();
         }
-        System.out.print (CLIENT_CREATED);
+        if (DEBUG) print (String.format("\n\t%s, thread's class : %s; thread's name : %s",
+                                        CLIENT_CREATED,
+                                        threadMain.getClass().getName(),
+                                        Thread.currentThread().getName()));
     }//ClientHandler (Socket)
 
     private String readInputStreamUTF ()
     {
-        //int sleeptimer = 0;
+        int sleeptimer = 0;
         String msg = null;
         try
         {   while (!connectionGettingClosed)
-            //if (dis.available() > 0)
-            {
-                msg = dis.readUTF();
-                System.out.print(".");
+            if (dis.available() > 0)
+            {   msg = dis.readUTF();
+                if (DEBUG) System.out.print(".");
                 break;
             }
-            //else
-            //{   Thread.sleep(THREAD_SLEEPINTERVAL_250);
-            //    sleeptimer ++;
-            //    if (sleeptimer > 5000 / THREAD_SLEEPINTERVAL_250)
-            //    {
-            //        if (!threadMain.isAlive())
-            //            break;
-            //        syncSendMessageToClient (CMD_ONLINE);   //< «пингуем» клиента
-            //        sleeptimer = 0;
-            //    }
-            //}
+            else
+            {   Thread.sleep(THREAD_SLEEPINTERVAL_250);
+                if (++sleeptimer > 5000 / THREAD_SLEEPINTERVAL_250)
+                {   if (!threadMain.isAlive())
+                        break;
+                    sleeptimer = 0; //syncSendMessageToClient (CMD_ONLINE);   //< «пингуем» клиента
+                }
+            }
         }
-        //catch (InterruptedException e) {e.printStackTrace();}
+        catch (InterruptedException e) {e.printStackTrace();}
         catch (IOException e)
         {   connectionGettingClosed = true;
             msg = null;
@@ -91,7 +90,6 @@ public class ClientHandler
         while (!connectionGettingClosed && (msg = readInputStreamUTF()) != null)
         {
             msg = msg.trim().toLowerCase();
-
             if (msg.isEmpty()/* || msg.equals (CMD_ONLINE)*/)
                 continue;
 
@@ -127,9 +125,8 @@ public class ClientHandler
                 }
             }
         }//while
-        System.out.print ("\nClientHandler.runThreadClientToServer() - поток закрылся."); //для отладки
-        threadClientToServer = null;
         close();
+        if (DEBUG) System.out.print ("\nClientHandler.runThreadClientToServer() - поток закрылся."); //для отладки
     }// runThreadClientToServer ()
 
 //Обработчик команды CMD_EXIT
@@ -152,9 +149,7 @@ public class ClientHandler
         {   nickname = null;
             syncSendMessageToClient (CMD_BADLOGIN, PROMPT_LOGINERROR_BUSY);
         }
-        else //< ok
-        {   syncSendMessageToClient (CMD_LOGIN, nickname);
-        }
+        else syncSendMessageToClient (CMD_LOGIN, nickname); //< ok
     }// onCmdLogin ()
 
 // Обработчик команды CMD_LOGIN_READY.
@@ -204,7 +199,7 @@ public class ClientHandler
         }
     }// onCmdClientsList ()
 
-//(Вспомогательная.)
+//(Вспомогательная.) Может вызываться из Server.
     public synchronized boolean syncSendMessageToClient (String ... lines)
     {
         boolean boolSent = false;
@@ -226,7 +221,7 @@ public class ClientHandler
     {
         connectionGettingClosed = true;
         if (server != null)
-        {   server.syncClientLogout(this);
+        {   server.syncClientLogout (this);
             server = null;
         }
         try
@@ -239,7 +234,7 @@ public class ClientHandler
             socket = null;
             dos = null;
             dis = null;
-            System.out.printf ("\n(ClientHandler.close() : клиент %s закрылся.)\n", nickname); //для отладки
+            if (DEBUG) System.out.printf ("\n(ClientHandler.close() : клиент %s закрылся.)", nickname); //для отладки
             nickname = null;
         }
     }// close ()

@@ -3,10 +3,9 @@ package ru.geekbrains.march.chat.server;
 import java.io.IOException;
 import java.net.ServerSocket;
 import java.net.Socket;
-import java.sql.Connection;
-import java.sql.DriverManager;
-import java.sql.SQLException;
 import java.util.*;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 import static ru.geekbrains.march.chat.server.ServerApp.*;
 
@@ -27,7 +26,10 @@ public class Server
     public static final int PORT_MIN = 0;
     private final String SERVERNAME;
 
-    private final int CONSOLE_THREAD_SLEEPINTERVAL = 250;
+    private final int
+            CONSOLE_THREAD_SLEEPINTERVAL = 250,
+            THREADS_POOL = 4
+            ;
 
     private int port = 0;
     private Map<String, ClientHandler> map;
@@ -35,6 +37,7 @@ public class Server
     //private Thread threadConsoleToClient;
     private boolean serverGettingOff;
     private Authentificator authentificator;
+    private ExecutorService executorservice;
 
 
     public Server (int port)
@@ -48,6 +51,9 @@ public class Server
         syncUpdatePublicClientsList();
         this.authentificator = new JdbcAuthentificationProvider();
 
+        executorservice = Executors.newFixedThreadPool (THREADS_POOL);
+        //executorservice = Executors.newCachedThreadPool(); < через 60 сек бездействия завершает поток
+
         try (ServerSocket servsocket = new ServerSocket (this.port);)
         {
             new Thread(() -> runThreadConsoleToClient (servsocket)).start();
@@ -56,7 +62,10 @@ public class Server
             while (!serverGettingOff)
             {   System.out.print (WAITING_FOR_CLIENTS);
                 Socket serverSideSocket = servsocket.accept();
-                new ClientHandler (this, serverSideSocket);
+                executorservice.execute(()->{
+                    new ClientHandler (this, serverSideSocket);
+                    //print ("\n\t"+Thread.currentThread().getName());
+                });
             }
         }
         //catch (SQLException sqle)
@@ -68,7 +77,7 @@ public class Server
             System.out.print (UNABLE_TOCREATE_HANDLER);
         }
         finally
-        {
+        {   executorservice.shutdown();
             if (authentificator != null)  authentificator = authentificator.close();
             serverGettingDown();
             System.out.print (SERVER_IS_OFF);

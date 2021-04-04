@@ -86,7 +86,6 @@ public class AuthentificationProvider implements Authentificator
 //меняем ник пользователя на указанный.
     @Override public String rename (String prevName, String newnickname)
     {
-        //boolean boolOk = false;
         String result = null;
         String login;
         User u;
@@ -98,11 +97,9 @@ public class AuthentificationProvider implements Authentificator
         {
             mapNicknames.put (newnickname, login);
             u.nickname = newnickname;
-            //boolOk = true;
             result = newnickname;
         }
         else System.out.print("\nНе удалось изменить ник пользователя : "+prevName+" -> "+newnickname+".");
-        //return boolOk;
         return result;
     }// changeNickname ()
 
@@ -110,12 +107,9 @@ public class AuthentificationProvider implements Authentificator
 //удаляем учётную запись (эта функция пока не используется; добавлена для порядка).
     @Override public void remove (String nick)
     {
-        boolean boolOk = false;
         String login;
         if (validateStrings (SOFT_MODE, nick)  &&  (login = mapNicknames.remove (nick)) != null)
-        {
-            boolOk = mapUsers.remove(login) != null;
-        }
+            mapUsers.remove(login);
     }// remove ()
 
     public Authentificator close ()   {   return null;   }
