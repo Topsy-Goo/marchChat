@@ -17,8 +17,6 @@ import java.net.Socket;
 import java.net.URL;
 import java.time.LocalDateTime;
 import java.util.*;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 
 import static ru.geekbrains.march.chat.client.Main.WNDTITLE_APPNAME;
 import static ru.geekbrains.march.chat.server.ClientHandler.THREAD_SLEEPINTERVAL_250;
@@ -79,7 +77,6 @@ public class Controller implements Initializable
     private Queue<String> inputqueue;
     private final Object syncQue = new Object();
     private boolean chatGettingClosed,    //< индикатор того, что сеанс завершается и что потокам пора «закругляться»
-                    //loginState = LOGED_OFF,
                     privateMode = MODE_PUBLIC,
                     changeNicknameMode = MODE_KEEP_NICKNAME,
                     tipsMode = TIPS_ON
@@ -106,7 +103,6 @@ public class Controller implements Initializable
         private final String name, text;   //< Serializable
         private final boolean inputMsg, privateMsg;
         private final LocalDateTime ldt = LocalDateTime.now();      //< Serializable (сейчас не используется)
-        //private static final long serialVersiobUID = 1L;
 
         public ChatMessage (String name, String message, boolean input, boolean prv)
         {   if (!validateStrings (name, message))    throw new IllegalArgumentException();
@@ -134,32 +130,28 @@ public class Controller implements Initializable
 // изменить своё имя. Или наоборот: чтобы мог ввести своё имя, но не мог пользоваться чатом.
     private void updateUserInterface (boolean canChat)
     {
-        //Platform.runLater(()->{
-            txtfieldUsernameField.setDisable (canChat == CAN_CHAT);
-            //buttonLogin.setText (canChat == CAN_CHAT ? "Выйти" : "Войти");
-            //buttonLogin.setVisible (canChat != CAN_CHAT);
-            buttonLogout.setVisible (canChat == CAN_CHAT);
-            btnToolbarPrivate.setSelected (privateMode);
-            btnToolbarChangeNickname.setSelected (changeNicknameMode);
+        txtfieldUsernameField.setDisable (canChat == CAN_CHAT);
+        buttonLogout.setVisible (canChat == CAN_CHAT);
+        btnToolbarPrivate.setSelected (privateMode);
+        btnToolbarChangeNickname.setSelected (changeNicknameMode);
 
-            if (canChat == CAN_CHAT)
-            {   txtIntroduction.setText (TXT_YOU_LOGED_IN_AS);
-                txtfieldUsernameField.setText(nickname);
-                txtfieldMessage.requestFocus();
-            } else
-            {   txtIntroduction.setText (TXT_INTRODUCE_YOURSELF);
-                listviewClients.getItems().clear();
-                txtfieldUsernameField.requestFocus();
-            }
-            hboxPassword.setManaged (canChat != CAN_CHAT);
-            hboxPassword.setVisible (canChat != CAN_CHAT);
-            hboxMessagePanel.setManaged (canChat == CAN_CHAT);
-            hboxMessagePanel.setVisible (canChat == CAN_CHAT);
-            hboxToolbar.setManaged (canChat == CAN_CHAT);
-            hboxToolbar.setVisible (canChat == CAN_CHAT);
-            vboxClientsList.setVisible (canChat == CAN_CHAT);
-            vboxClientsList.setManaged (canChat == CAN_CHAT);
-        //});
+        if (canChat == CAN_CHAT)
+        {   txtIntroduction.setText (TXT_YOU_LOGED_IN_AS);
+            txtfieldUsernameField.setText(nickname);
+            txtfieldMessage.requestFocus();
+        } else
+        {   txtIntroduction.setText (TXT_INTRODUCE_YOURSELF);
+            listviewClients.getItems().clear();
+            txtfieldUsernameField.requestFocus();
+        }
+        hboxPassword.setManaged (canChat != CAN_CHAT);
+        hboxPassword.setVisible (canChat != CAN_CHAT);
+        hboxMessagePanel.setManaged (canChat == CAN_CHAT);
+        hboxMessagePanel.setVisible (canChat == CAN_CHAT);
+        hboxToolbar.setManaged (canChat == CAN_CHAT);
+        hboxToolbar.setVisible (canChat == CAN_CHAT);
+        vboxClientsList.setVisible (canChat == CAN_CHAT);
+        vboxClientsList.setManaged (canChat == CAN_CHAT);
     }// updateUserInterface ()
 
 // Подключение к серверу.
@@ -214,7 +206,6 @@ public class Controller implements Initializable
      интерфейсом пользователя.
     Этот метод нельзя вызывать до инициализации среды выполнения FX.
  */
-//Platform.runLater(()->{   System.out.print("\n\tmessageDispatcher() выполняется.");  });
         String prompt = PROMPT_YOU_ARE_LOGED_OFF;
         while (!chatGettingClosed)
         {
@@ -245,14 +236,9 @@ public class Controller implements Initializable
                     prompt = EMERGENCY_EXIT_FROM_CHAT;
                     break;
                 }
-                //Platform.runLater(()->{  System.out.print("_"); });
             }
         }
         closeSession (prompt);
-        //Platform.runLater(()->{
-        //    print("\n\tmessageDispatcher() звершился.");
-        //});
-        //print("\n\tвыход из messageDispatcher().");
     }// messageDispatcher ()
 
 // Run-метод потока threadIntputStream. Считываем сообщения из входного канала соединения и помещаем их в очередь.
@@ -265,8 +251,6 @@ public class Controller implements Initializable
         {   while (!chatGettingClosed)
             switch (msg = dis.readUTF().trim())
             {
-                //case CMD_ONLINE:       queueOffer (CMD_ONLINE);
-                //    break;
                 case CMD_CHAT_MSG:     queueOffer (CMD_CHAT_MSG, dis.readUTF(), dis.readUTF()); //cmd + name + msg
                     break;
                 case CMD_PRIVATE_MSG:  queueOffer (CMD_PRIVATE_MSG, dis.readUTF(), dis.readUTF()); //cmd + name + msg
@@ -304,9 +288,8 @@ public class Controller implements Initializable
         finally
         {   inputqueue.offer (CMD_EXIT); //если не можем слушать канал, то всем отбой.
             closeSession (prompt);
-            print("\n\trunTreadInputStream() завершился.");
+            if (DEBUG) print("\n\trunTreadInputStream() завершился.");
         }
-//print("\n\tвыход из runTreadInputStream().");
     }// runTreadInputStream ()
 
 //(Вспомогательная.) Добавляем в очередь одну или несколько строк, в зависимости от типа сообщения. (Без проверок.)
@@ -335,8 +318,7 @@ public class Controller implements Initializable
             if ((msg = inputqueue.poll()) != null)
             {
                 switch (msg)
-                {   //case CMD_ONLINE:    sendMessageToServer (CMD_ONLINE);
-                    //    break;
+                {
                     case CMD_CHAT_MSG:   boolOk = onCmdChatMsg();
                         break;
                     case CMD_CLIENTS_LIST_CHANGED:  boolOk = sendMessageToServer (CMD_CLIENTS_LIST);
@@ -378,9 +360,7 @@ public class Controller implements Initializable
         ChatMessage cm = new ChatMessage (name, message, name.equals(nickname), PUBLIC_MSG);
         if (stenographer != null) stenographer.append (cm);
 
-        //Platform.runLater(()->{
-            txtareaMessages.appendText (cm.toString());
-        //});
+        txtareaMessages.appendText (cm.toString());
         return true;
     }// onCmdChatMsg ()
 
@@ -395,9 +375,7 @@ public class Controller implements Initializable
         ChatMessage cm = new ChatMessage (name, message, INPUT_MSG, PRIVATE_MSG);
         if (stenographer != null) stenographer.append (cm);
 
-        //Platform.runLater(()->{
-            txtareaMessages.appendText (cm.toString());
-        //});
+        txtareaMessages.appendText (cm.toString());
         return true;
     }// onCmdPrivateMsg ()
 
@@ -406,7 +384,7 @@ public class Controller implements Initializable
     {   nickname = inputqueue.poll();
         if (!validateStrings (nickname))
             throw new RuntimeException("ERROR @ onCmdLogIn() : queue polling error.");
-        //loginState = LOGED_IN;
+
         readChatStorage();    //< Считываем историю чата из файла
         updateUserInterface (CAN_CHAT);
 
@@ -421,14 +399,12 @@ public class Controller implements Initializable
         if (!validateStrings (nickname))
             throw new RuntimeException ("ERROR @ onCmdChangeNickname() : queue polling error.");
 
-        //Platform.runLater(()->{
-            txtfieldUsernameField.setText (nickname);
-            onactionChangeNickname();   //< Отщёлкиваем кнопку «Сменить имя» в исходное состояние.
-            txtfieldMessage.clear();//< перед отправкой запроса на сервер мы оставили имя в поле ввода.
-                                    // Теперь нужно его оттуда убрать.
-            txtfieldMessage.requestFocus();
-        //});
-        System.out.printf ("\n\tпоменял имя на %s", nickname); //< для отладки
+        txtfieldUsernameField.setText (nickname);
+        onactionChangeNickname();   //< Отщёлкиваем кнопку «Сменить имя» в исходное состояние.
+        txtfieldMessage.clear();//< перед отправкой запроса на сервер мы оставили имя в поле ввода.
+                                // Теперь нужно его оттуда убрать.
+        txtfieldMessage.requestFocus();
+        if (DEBUG) System.out.printf ("\n\tпоменял имя на %s", nickname); //< для отладки
         return true;
     }// onCmdChangeNickname ()
 
@@ -447,20 +423,16 @@ public class Controller implements Initializable
         if (!validateStrings (tmplist))
             throw new RuntimeException("ERROR @ onCmdClientsList() : queue polling error (array).");
 
-        //Platform.runLater(()->{
-            listviewClients.getItems().clear();
-            for (String s : tmplist)
-                listviewClients.getItems().add(s);
-        //});
+        listviewClients.getItems().clear();
+        for (String s : tmplist)
+            listviewClients.getItems().add(s);
         return true;
     }// onCmdClientsList ()
 
 // Обработчик команды CMD_CONNECTED. Информируем пользователя об устанке соединения с сервером.
     boolean onCmdConnected ()
     {
-        //Platform.runLater(()->{
-            txtareaMessages.appendText (PROMPT_CONNECTION_ESTABLISHED);
-        //});
+        txtareaMessages.appendText (PROMPT_CONNECTION_ESTABLISHED);
         return true;
     }// onCmdConnected ()
 
@@ -495,7 +467,6 @@ public class Controller implements Initializable
     boolean onCmdExit (String prompt)
     {
         chatGettingClosed = true; //< это заставит звершиться дополнительные потоки
-        //loginState = LOGED_OFF;
         updateUserInterface (CANNOT_CHAT);
 
         if (stenographer != null) //< если stenographer == 0, то, скорее всего, ничего сохранять или выводить уже не нужно
@@ -508,9 +479,7 @@ public class Controller implements Initializable
                 if (stenographer != null) stenographer.append (cm);
                 prompt = cm.toString();
             }
-            //Platform.runLater(()->{
-                txtareaMessages.appendText (prompt);
-            //});
+            txtareaMessages.appendText (prompt);
             stenographer.close();
         }
         stenographer = null;
@@ -577,40 +546,38 @@ public class Controller implements Initializable
 // для управления приложением предусмотрены кнопки.)
     @FXML public void onactionSendMessage ()
     {
-        //Platform.runLater(()->{
-            String message = txtfieldMessage.getText();
-            boolean boolSent = false;
+        String message = txtfieldMessage.getText();
+        boolean boolSent = false;
 
-            if (message == null || message.trim().isEmpty())
-            {
-                if (tipsMode == TIPS_ON)   alertWarning (ALERT_HEADER_EMPTY_MESSAGE, PROMPT_EMPTY_MESSAGE);
-            }
-            else if (changeNicknameMode == MODE_CHANGE_NICKNAME) //< включен режим смены имени
-            {
-                if (alertConfirmationYesNo (ALERT_HEADER_RENAMING, String.format(PROMPT_CONFIRM_NEW_NICKNAME, message)) == ANSWER_YES)
-                    sendMessageToServer(CMD_CHANGE_NICKNAME, message);
-            }
-            else if (privateMode == MODE_PRIVATE) // исходящие приватные сообщения
-            {
-                String name = listviewClients.getSelectionModel().getSelectedItem();
+        if (message == null || message.trim().isEmpty())
+        {
+            if (tipsMode == TIPS_ON)   alertWarning (ALERT_HEADER_EMPTY_MESSAGE, PROMPT_EMPTY_MESSAGE);
+        }
+        else if (changeNicknameMode == MODE_CHANGE_NICKNAME) //< включен режим смены имени
+        {
+            if (alertConfirmationYesNo (ALERT_HEADER_RENAMING, String.format(PROMPT_CONFIRM_NEW_NICKNAME, message)) == ANSWER_YES)
+                sendMessageToServer(CMD_CHANGE_NICKNAME, message);
+        }
+        else if (privateMode == MODE_PRIVATE) // исходящие приватные сообщения
+        {
+            String name = listviewClients.getSelectionModel().getSelectedItem();
 
-                if (name == null || name.isEmpty())
-                    alertWarning(ALERT_HEADER_ADDRESSEE, PROMPT_ADDRESSEE_NOTSELECTED); //< если получатель не выбран
-                else
-                if (boolSent = sendMessageToServer(CMD_PRIVATE_MSG, name, message))
-                {
-                    ChatMessage cm = new ChatMessage (name, message, OUTPUT_MSG, PRIVATE_MSG);
-                    if (stenographer != null) stenographer.append (cm);
-                    txtareaMessages.appendText (cm.toString());
-                }
+            if (name == null || name.isEmpty())
+                alertWarning(ALERT_HEADER_ADDRESSEE, PROMPT_ADDRESSEE_NOTSELECTED); //< если получатель не выбран
+            else
+            if (boolSent = sendMessageToServer(CMD_PRIVATE_MSG, name, message))
+            {
+                ChatMessage cm = new ChatMessage (name, message, OUTPUT_MSG, PRIVATE_MSG);
+                if (stenographer != null) stenographer.append (cm);
+                txtareaMessages.appendText (cm.toString());
             }
-            else boolSent = sendMessageToServer(CMD_CHAT_MSG, message); // обычный режим (публичные сообщения)
+        }
+        else boolSent = sendMessageToServer(CMD_CHAT_MSG, message); // обычный режим (публичные сообщения)
 
-            if (boolSent)
-            {   txtfieldMessage.clear();
-                txtfieldMessage.requestFocus();
-            }
-        //});
+        if (boolSent)
+        {   txtfieldMessage.clear();
+            txtfieldMessage.requestFocus();
+        }
     }// onactionSendMessage ()
 
 // Обработка нажатия на кнопку «Приватно» (переключение приват. режима).
@@ -659,13 +626,12 @@ public class Controller implements Initializable
 // Стандартное окно сообщения с кнопкой Close.
     public static void alertWarning (String header, String msg)
     {
-        //Platform.runLater(()->{
         if (validateStrings (header, msg))
         {   Alert a = new Alert (Alert.AlertType.WARNING, msg, ButtonType.CLOSE);
             a.setTitle (ALERT_TITLE);
             a.setHeaderText (header);
             a.showAndWait();
-        }//});
+        }
     }// alertWarning ()
 
 // Стандартное окно сообщения с кнопками Да и Нет.
@@ -688,12 +654,9 @@ public class Controller implements Initializable
     {
         stenographer = new MessageStenographer<> (login +".chat");
         List<ChatMessage> cmlist = stenographer.getData();
-
-        //Platform.runLater(()->{
-            txtareaMessages.clear(); //< очищаем окно чата (чтобы не мучаться, т.к. юзер может и под другой
-            for (Object cm : cmlist) //           учёткой перезайти, для которой есть другой файл истории…)
-                txtareaMessages.appendText (cm.toString());
-        //});
+        txtareaMessages.clear(); //< очищаем окно чата (чтобы не мучаться, т.к. юзер может и под другой
+        for (Object cm : cmlist) //           учёткой перезайти, для которой есть другой файл истории…)
+            txtareaMessages.appendText (cm.toString());
     }// readChatStorage ()
 
     @Override public String toString() { return "Controller:"+ nickname; }
