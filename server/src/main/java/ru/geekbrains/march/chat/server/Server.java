@@ -16,7 +16,7 @@ public class Server
             SERVERNAME_BASE_ = "ЧатСервер-",
             SESSION_START = "\nНачало сессии.",
             WAITING_FOR_CLIENTS = "\n\tЖдём подклюение клиента... ",
-            UNABLE_TOCREATE_HANDLER = "\nНе удалось создать ClientHandler.",
+            //UNABLE_TOCREATE_HANDLER = "\nНе удалось создать ClientHandler.",
             FORMAT_RENAMING_TO_ = "(меняет имя на %s)",
             FORMAT_LEFT_CHAT = "(%s вышел из чата)",
             SERVER_IS_OFF = "\nСервер завершил работу."
@@ -30,7 +30,7 @@ public class Server
     private Map<String, ClientHandler> map;
     private String[] publicCliendsList;
     private boolean serverGettingOff;
-    private ExecutorService executorservice;
+    //private ExecutorService executorservice;
 
     private final static Object syncAuth = new Object();
     private static Authentificator authentificator;
@@ -53,7 +53,7 @@ public class Server
             authentificatorUsers ++;
         }
 
-        executorservice = Executors.newFixedThreadPool (THREADS_POOL);
+        //executorservice = Executors.newFixedThreadPool (THREADS_POOL);
         //executorservice = Executors.newCachedThreadPool(); < через 60 сек бездействия завершает поток
 
         try (ServerSocket servsocket = new ServerSocket (port))
@@ -64,23 +64,18 @@ public class Server
             while (!serverGettingOff)
             {   System.out.print (WAITING_FOR_CLIENTS);
                 Socket serverSideSocket = servsocket.accept();
-                executorservice.execute(()->{
+                //executorservice.execute(()->{
                     new ClientHandler (this, serverSideSocket);
                     //print ("\n\t"+Thread.currentThread().getName());
-                });
+                //});
             }
         }
         catch (IOException ioe)
-        {   authentificatorUsers --;
-            ioe.printStackTrace();
-            System.out.print (UNABLE_TOCREATE_HANDLER);
+        {   ioe.printStackTrace();
+            //System.out.print (UNABLE_TOCREATE_HANDLER);
         }
         finally
-        {   executorservice.shutdown();
-            synchronized (syncAuth)
-            {   if (authentificatorUsers <= 0 && authentificator != null)
-                   authentificator = authentificator.close();
-            }
+        {   //executorservice.shutdown();
             serverGettingDown();
             System.out.print (SERVER_IS_OFF);
             //(После закрытия ServerSocket'а открытые соединения продолжают работать, но создавать новые нет возможности.)
@@ -93,6 +88,10 @@ public class Server
 // Подготовка к «отключению» сервра.
     private void serverGettingDown ()
     {
+        synchronized (syncAuth)
+        {   if (--authentificatorUsers <= 0 && authentificator != null)
+                authentificator = authentificator.close();
+        }
         if (map != null) //< закрываем всех клиентов.
         {
             for (Map.Entry<String, ClientHandler> entry : map.entrySet())

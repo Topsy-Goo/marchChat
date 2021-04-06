@@ -178,14 +178,17 @@ public class Controller implements Initializable
 //Закрытие сокета и обнуление связанных с ним переменных.
     private void disconnect ()
     {
-        if (clientSideSocket != null && !clientSideSocket.isClosed())
-        {   try { clientSideSocket.close(); }
-            catch(IOException e) {e.printStackTrace();}
+        try
+        {   if (clientSideSocket != null && !clientSideSocket.isClosed())
+                clientSideSocket.close();
+        }
+        catch(IOException e) {e.printStackTrace();}
+        finally
+        {   clientSideSocket = null;
+            dis = null;
+            dos = null;
             print("\n\tdisconnect() - соединение разорвано.");
         }
-        clientSideSocket = null;
-        dis = null;
-        dos = null;
     }// disconnect ()
 
 //--------------------------------------------------- потоки и очередь
@@ -238,18 +241,18 @@ public class Controller implements Initializable
                     syncQue.wait(5000); //< даём спокойно поработать threadJfx (на всякий случай укажим таймаут)
                 }//while
             }//try
-            catch (InterruptedException e)
-            {   e.printStackTrace();
+            catch (InterruptedException e) //< искл.бросается вызовом thread.interrupt();
+            {   //e.printStackTrace();
                 chatGettingClosed = true;
-                System.out.print("\n\tERROR @ messageDispatcher().");
                 prompt = EMERGENCY_EXIT_FROM_CHAT;
+                if (DEBUG) print("\n\tmessageDispatcher(): threadCommandDispatcher is interrupted.");
                 //break;
             }
             finally
-            {   String finalPrompt = prompt;
+            {   if (DEBUG) print ("\n\tmessageDispatcher() завершился.");
+                String finalPrompt = prompt;
                 Platform.runLater(()->{  closeSession (finalPrompt);  });
                 threadCommandDispatcher = null;
-                if (DEBUG) print ("\n\tmessageDispatcher() завершился.");
             }
         }//synchronized
     }// messageDispatcher ()
@@ -305,9 +308,19 @@ public class Controller implements Initializable
                 }//synchronized
             }//while
         }
-        catch (IOException | InterruptedException e)
-        {   synchronized (syncQue) { inputqueue.offer (CMD_EXIT);} //если не можем слушать канал, то всем отбой.
-            if (DEBUG) print("\n\tERROR @ runTreadInputStream().");
+        catch (InterruptedException e) //< искл.бросается вызовом thread.interrupt();
+        {   chatGettingClosed = true;
+            synchronized (syncQue) { inputqueue.offer (CMD_EXIT);} //если не можем слушать канал, то всем отбой.
+            if (DEBUG) print("\n\trunTreadInputStream(): threadListenServerCommands is interrupted.");
+            //e.printStackTrace();
+        }
+        catch (IOException e)
+        {   chatGettingClosed = true;
+            synchronized (syncQue)
+            {
+                inputqueue.offer (CMD_EXIT);
+            }
+            if (DEBUG) print("\n\tERROR @ runTreadInputStream(): соединение оборвалось.");
             e.printStackTrace();
         }
         finally
@@ -325,6 +338,7 @@ public class Controller implements Initializable
             for (String s : lines)
                 if (!inputqueue.offer (s))
                     throw new RuntimeException ("ERROR : unable to offer message.");
+
             if (DEBUG)
             {   print("\n\tin«");
                 for (int i=0,n=lines.length;   i<n;   i++)    print(((i>0)?" | ":"")+lines[i]);
@@ -518,7 +532,7 @@ public class Controller implements Initializable
         login = null;
         nickname = null;
 
-        syncQue.notifyAll();
+        synchronized (syncQue) {syncQue.notifyAll();}
         try
         {   if (threadListenServerCommands != null) threadListenServerCommands.join(1000);
             if (threadCommandDispatcher != null) threadCommandDispatcher.join(1000);
@@ -648,7 +662,7 @@ public class Controller implements Initializable
         }
         catch (IOException e)
         {   print (" - ERROR @ sendMessageToServer() : "+ PROMPT_UNABLE_TO_SEND_MESSAGE);
-            e.printStackTrace();
+            //e.printStackTrace();
         }
         return boolSent;
     }// sendMessageToServer ()
@@ -728,6 +742,7 @@ public class Controller implements Initializable
 /*  TODO * при аврийном закрытии клиента он после перезапуска своего приложения не может войти в чат до тех пор,
           пока сервер не перезагрузится (ошибка где-то на стороне сервера).
 
-    TODO + если сервер аварийно отключился, а потом снова включился, то не удаётся подключиться к нему (ошибка
-          где-то на стороне клиента).
-* */
+    TODO * сейчас при отправке личного сообщения оно сразу записывается в историю. Для таких исх.сообщений можно
+          сделать подтверждение от сервера, по получении которого сообщение и будет записываться в историю.
+
+*/
