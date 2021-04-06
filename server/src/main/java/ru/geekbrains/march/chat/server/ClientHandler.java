@@ -49,11 +49,36 @@ public class ClientHandler
         {   close();
             ioe.printStackTrace();
         }
-        if (DEBUG) print (String.format("\n\t%s, thread's class : %s; thread's name : %s",
+        finally
+        {   if (DEBUG) print (String.format("\n\t%s, thread's class : %s; thread's name : %s",
                                         CLIENT_CREATED,
                                         threadMain.getClass().getName(),
                                         Thread.currentThread().getName()));
+        }
     }//ClientHandler (Socket)
+
+// Закрытие соединения и завершение работы.
+    private void close ()
+    {
+        connectionGettingClosed = true;
+        if (server != null)
+        {   server.syncClientLogout (this);
+            server = null;
+        }
+        try
+        {   if (threadClientToServer != null)   threadClientToServer.join(1000);
+            if (socket != null && !socket.isClosed())   socket.close();
+        }
+        catch (InterruptedException | IOException e) { e.printStackTrace(); }
+        finally
+        {   threadClientToServer = null;
+            socket = null;
+            dos = null;
+            dis = null;
+            if (DEBUG) System.out.printf ("\n(ClientHandler.close() : клиент %s закрылся.)", nickname); //для отладки
+            nickname = null;
+        }
+    }// close ()
 
     private String readInputStreamUTF ()
     {
@@ -128,7 +153,7 @@ public class ClientHandler
         close();
         if (DEBUG) System.out.print ("\nClientHandler.runThreadClientToServer() - поток закрылся."); //для отладки
     }// runThreadClientToServer ()
-
+//----------------------------------------- команды ------------------------
 //Обработчик команды CMD_EXIT
     private void onCmdExit ()
     {
@@ -177,17 +202,6 @@ public class ClientHandler
         }
     }// onCmdChangeNickname ()
 
-//Отсылаем клиенту новый список клиентов.
-    private void sendClientsList ()
-    {
-        String[] clientslist = server.getClientsList();
-        if (clientslist != null)
-        {   syncSendMessageToClient (CMD_CLIENTS_LIST);
-            syncSendMessageToClient (String.valueOf (clientslist.length));
-            syncSendMessageToClient (clientslist);
-        }
-    }// sendClientsList ()
-
 //Обработчик команды CMD_CLIENTS_LIST.
     private void onCmdClientsList ()
     {
@@ -198,6 +212,17 @@ public class ClientHandler
             syncSendMessageToClient (clientslist);
         }
     }// onCmdClientsList ()
+//----------------------------------------- вспомогательные ------------------------
+//Отсылаем клиенту новый список клиентов.
+    private void sendClientsList ()
+    {
+        String[] clientslist = server.getClientsList();
+        if (clientslist != null)
+        {   syncSendMessageToClient (CMD_CLIENTS_LIST);
+            syncSendMessageToClient (String.valueOf (clientslist.length));
+            syncSendMessageToClient (clientslist);
+        }
+    }// sendClientsList ()
 
 //(Вспомогательная.) Может вызываться из Server.
     public synchronized boolean syncSendMessageToClient (String ... lines)
@@ -215,29 +240,6 @@ public class ClientHandler
         }
         return boolSent;
     }// syncSendMessageToClient ()
-
-// Закрытие соединения.
-    private void close ()
-    {
-        connectionGettingClosed = true;
-        if (server != null)
-        {   server.syncClientLogout (this);
-            server = null;
-        }
-        try
-        {   if (threadClientToServer != null)   threadClientToServer.join(1000);
-            if (socket != null && !socket.isClosed())   socket.close();
-        }
-        catch (InterruptedException | IOException e) { e.printStackTrace(); }
-        finally
-        {   threadClientToServer = null;
-            socket = null;
-            dos = null;
-            dis = null;
-            if (DEBUG) System.out.printf ("\n(ClientHandler.close() : клиент %s закрылся.)", nickname); //для отладки
-            nickname = null;
-        }
-    }// close ()
 
 //Метод вызывается сервером.
     public void onServerDown (String servername)

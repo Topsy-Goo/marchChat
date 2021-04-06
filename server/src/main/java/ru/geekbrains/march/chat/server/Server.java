@@ -26,35 +26,37 @@ public class Server
     public static final int PORT_MIN = 0;
     private final String SERVERNAME;
 
-    private final int
-            CONSOLE_THREAD_SLEEPINTERVAL = 250,
-            THREADS_POOL = 4
-            ;
-
-    private int port = 0;
+    private final int THREADS_POOL = 4;
     private Map<String, ClientHandler> map;
     private String[] publicCliendsList;
-    //private Thread threadConsoleToClient;
     private boolean serverGettingOff;
-    private Authentificator authentificator;
     private ExecutorService executorservice;
+
+    private final static Object syncAuth = new Object();
+    private static Authentificator authentificator;
+    private static Integer authentificatorUsers = 0;
 
 
     public Server (int port)
     {
         if (port < PORT_MIN || port > PORT_MAX)    throw new IllegalArgumentException();
 
-        this.port = port;
         SERVERNAME = SERVERNAME_BASE_ + serverNameCounter ++;
         serverGettingOff = false;
         map = new HashMap<>();
         syncUpdatePublicClientsList();
-        this.authentificator = new JdbcAuthentificationProvider();
+
+        //несколько серверов (запущенные на одной машине) могут использовать БД парллельно
+        synchronized (syncAuth)
+        {   if (authentificator == null)
+                authentificator = new JdbcAuthentificationProvider();
+            authentificatorUsers ++;
+        }
 
         executorservice = Executors.newFixedThreadPool (THREADS_POOL);
         //executorservice = Executors.newCachedThreadPool(); < через 60 сек бездействия завершает поток
 
-        try (ServerSocket servsocket = new ServerSocket (this.port);)
+        try (ServerSocket servsocket = new ServerSocket (port))
         {
             new Thread(() -> runThreadConsoleToClient (servsocket)).start();
             System.out.print (SESSION_START);
@@ -68,22 +70,24 @@ public class Server
                 });
             }
         }
-        //catch (SQLException sqle)
-        //{   sqle.printStackTrace();
-        //    throw new RuntimeException(); //< останавливаем работу всего сервера при ошибке подключения к БД
-        //}
         catch (IOException ioe)
-        {   ioe.printStackTrace();
+        {   authentificatorUsers --;
+            ioe.printStackTrace();
             System.out.print (UNABLE_TOCREATE_HANDLER);
         }
         finally
         {   executorservice.shutdown();
-            if (authentificator != null)  authentificator = authentificator.close();
+            synchronized (syncAuth)
+            {   if (authentificatorUsers <= 0 && authentificator != null)
+                   authentificator = authentificator.close();
+            }
             serverGettingDown();
             System.out.print (SERVER_IS_OFF);
             //(После закрытия ServerSocket'а открытые соединения продолжают работать, но создавать новые нет возможности.)
         }
     }// Server ()
+
+    //private static a
 
 
 // Подготовка к «отключению» сервра.
@@ -133,9 +137,10 @@ public class Server
 // если авторизация верная.)
     public synchronized String syncValidateOnLogin (String login, String password, ClientHandler client)
     {
-        String nick = (authentificator != null)
-                    ? authentificator.authenticate (login, password)
-                    : null; //< может вернуть null
+        String nick;
+        synchronized (syncAuth)
+        {   nick = authentificator.authenticate (login, password); //< может вернуть null
+        }
     //null - индикатор ошибки БД или того, что логин/пароль не подошли.
     //пустая строка - индикатор повторного входа в чат
         if (nick != null && map.containsKey (nick))
@@ -160,8 +165,9 @@ public class Server
         if (client != null && authentificator != null)
         {
             String prevnickname = client.getClientName();
-            result = authentificator.rename (prevnickname, newnickname);
-
+            synchronized (syncAuth)
+            {   result = authentificator.rename (prevnickname, newnickname);
+            }
             if (result != null && !result.isEmpty())
             {
                 map.remove (prevnickname);
@@ -261,3 +267,4 @@ public class Server
     public void print (String s) {System.out.print(s);}
 
 }// class Server
+
