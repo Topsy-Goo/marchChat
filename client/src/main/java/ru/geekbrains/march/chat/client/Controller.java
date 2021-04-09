@@ -212,6 +212,7 @@ public class Controller implements Initializable
     Этот метод нельзя вызывать до инициализации среды выполнения FX.
  */
         String prompt = PROMPT_YOU_ARE_LOGED_OFF;
+        boolean closeSessionYourSelf = false; //< определяет, какой поток будет вызывать closeSession: этот или Jfx
         print("\n\tmessageDispatcher() выполняется.");
         synchronized (syncQue)
         {
@@ -227,18 +228,20 @@ public class Controller implements Initializable
                 // поток threadJfx начинает «ломиться» в queuePoll() в то время, когда inputqueue занят
                 // преимущественно threadCommandDispatcher'ом. Серии холостых вызовов queuePoll() могут
                 // достигать нескольких тысяч подряд.
-                    if (!threadJfx.isAlive())
-                    {   prompt = "ERROR @ messageDispatcher(): Кажется, родительский поток завершился…";
+                    if (threadJfx == null || !threadJfx.isAlive()) //< если клиент закрыл приложение, не выходя из чата
+                    {   threadJfx = null;
+                        prompt = "Кажется, приложение закрылось до выхода из чата…";
                         chatGettingClosed = true;
+                        closeSessionYourSelf = true;
                     }
-                    else if (!inputqueue.isEmpty())
-                    {
-                        Platform.runLater(()->{  chatGettingClosed = !queuePoll();  });
-                    }
+                    else
+                    {   if (!inputqueue.isEmpty())
+                            Platform.runLater(()->{  chatGettingClosed = !queuePoll();  });
                 //Использование wait-notify сделало использование sleep() ненужным, но пришлось добавить в клиент
                 // один вызов Platform.runLater -- в closeSession(). Теперь в клиенте два вызова Platform.runLater.
-                    syncQue.notify();   //< будим поток threadListenServerCommands
-                    syncQue.wait(5000); //< даём спокойно поработать threadJfx (на всякий случай укажим таймаут)
+                        syncQue.notify();   //< будим поток threadListenServerCommands
+                        syncQue.wait(5000); //< даём спокойно поработать threadJfx (на всякий случай укажим таймаут)
+                    }
                 }//while
             }//try
             catch (InterruptedException e) //< искл.бросается вызовом thread.interrupt();
@@ -249,10 +252,13 @@ public class Controller implements Initializable
                 //break;
             }
             finally
-            {   if (DEBUG) print ("\n\tmessageDispatcher() завершился.");
-                String finalPrompt = prompt;
-                Platform.runLater(()->{  closeSession (finalPrompt);  });
-                threadCommandDispatcher = null;
+            {   String finalPrompt = prompt;
+                if (!closeSessionYourSelf)
+                    Platform.runLater(()->{  closeSession (finalPrompt);  });
+                else
+                    closeSession (finalPrompt); //< если родительский поток закрыт, то всё закрываем сами
+                if (DEBUG) print ("\n\tmessageDispatcher() завершился.");
+                //threadCommandDispatcher = null;
             }
         }//synchronized
     }// messageDispatcher ()
@@ -318,7 +324,7 @@ public class Controller implements Initializable
         {   chatGettingClosed = true;
             synchronized (syncQue)
             {
-                inputqueue.offer (CMD_EXIT);
+                if (inputqueue != null) inputqueue.offer (CMD_EXIT);
             }
             if (DEBUG) print("\n\tERROR @ runTreadInputStream(): соединение оборвалось.");
             e.printStackTrace();
@@ -513,7 +519,7 @@ public class Controller implements Initializable
     {
         if (DEBUG) print("\n\tonCmdExit() начало.");
         chatGettingClosed = true; //< это заставит звершиться дополнительные потоки
-        updateUserInterface (CANNOT_CHAT);
+        if (threadJfx != null)  updateUserInterface (CANNOT_CHAT); //TODO : нужен работающий threadJfx
 
         if (stenographer != null) //< если stenographer == 0, то, скорее всего, ничего сохранять или выводить уже не нужно
         {
@@ -739,10 +745,10 @@ public class Controller implements Initializable
 
 }// class Controller
 
-/*  TODO * при аврийном закрытии клиента он после перезапуска своего приложения не может войти в чат до тех пор,
-          пока сервер не перезагрузится (ошибка где-то на стороне сервера).
+/*  TODO * сейчас при отправке личного сообщения оно сразу записывается в историю. Для таких исх.сообщений можно
+            сделать подтверждение от сервера, по получении которого сообщение и будет записываться в историю.
 
-    TODO * сейчас при отправке личного сообщения оно сразу записывается в историю. Для таких исх.сообщений можно
-          сделать подтверждение от сервера, по получении которого сообщение и будет записываться в историю.
+    TODO : Преподаватель «анонсировал» короткое чтение истории чата из файла (применительно к его версии чата):
+            Files.lines(Paths.get("log.txt")).collect(Collectors.joining("\n"));
 
 */

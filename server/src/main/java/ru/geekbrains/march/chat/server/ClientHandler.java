@@ -41,20 +41,19 @@ public class ClientHandler
         try
         {   dis = new DataInputStream (socket.getInputStream());
             dos = new DataOutputStream (socket.getOutputStream());
-            threadClientToServer = new Thread(() -> runThreadClientToServer());
+            threadClientToServer = new Thread(this::runThreadClientToServer);
             threadClientToServer.start();
-            syncSendMessageToClient (CMD_CONNECTED);
         }
         catch (IOException ioe)
         {   close();
             ioe.printStackTrace();
         }
-        finally
-        {   if (DEBUG) print (String.format("\n\t%s, thread's class : %s; thread's name : %s",
-                                        CLIENT_CREATED,
-                                        threadMain.getClass().getName(),
-                                        Thread.currentThread().getName()));
-        }
+        //finally
+        //{   if (DEBUG) print (String.format("\n\t%s, thread's class : %s; thread's name : %s",
+        //                                CLIENT_CREATED,
+        //                                threadMain.getClass().getName(),
+        //                                Thread.currentThread().getName()));
+        //}
     }//ClientHandler (Socket)
 
 // Закрытие соединения и завершение работы.
@@ -93,17 +92,17 @@ public class ClientHandler
             }
             else
             {   Thread.sleep(THREAD_SLEEPINTERVAL_250);
+
                 if (++sleeptimer > 5000 / THREAD_SLEEPINTERVAL_250)
-                {   if (!threadMain.isAlive())
+                {   if (threadMain == null || !threadMain.isAlive())
                         break;
-                    sleeptimer = 0; //syncSendMessageToClient (CMD_ONLINE);   //< «пингуем» клиента
+                    sleeptimer = 0;
                 }
             }
         }
         catch (InterruptedException e) {e.printStackTrace();}
         catch (IOException e)
-        {   connectionGettingClosed = true;
-            msg = null;
+        {   msg = null;
             e.printStackTrace();
         }
         return msg;
@@ -112,10 +111,11 @@ public class ClientHandler
     private void runThreadClientToServer ()
     {
         String msg;
+        syncSendMessageToClient (CMD_CONNECTED);
         while (!connectionGettingClosed && (msg = readInputStreamUTF()) != null)
         {
             msg = msg.trim().toLowerCase();
-            if (msg.isEmpty()/* || msg.equals (CMD_ONLINE)*/)
+            if (msg.isEmpty())
                 continue;
 
             if (msg.equals (CMD_EXIT))  onCmdExit();
