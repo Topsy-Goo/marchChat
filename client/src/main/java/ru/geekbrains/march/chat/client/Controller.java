@@ -8,6 +8,9 @@ import javafx.scene.control.*;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
 import javafx.scene.text.Text;
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
@@ -47,7 +50,7 @@ public class Controller implements Initializable
             FORMAT_PRIVATEMSG_FROMYOU = "\n[приватно c %s] от Вас:\n\t%s",
             PROMPT_CONNECTION_ESTABLISHED = "\nСоединение с сервером установлено.",
             PROMPT_TIPS_ON = "\nПодсказки включены.",
-            PROMPT_UNABLE_TO_CONNECT = "\nНе удалось подключиться.",
+            PROMPT_UNABLE_TO_CONNECT = "Не удалось подключиться.",
             PROMPT_YOU_ARE_LOGED_OFF = "Вы вышли из чата.",
             PROMPT_CONNECTION_LOST = "\nСоединение разорвано.",
             PROMPT_PRIVATE_MODE_IS_ON = "\n\nВы вошли в приватный режим. Ваши сообщения будут видны только выбранному собеседнику.",
@@ -56,7 +59,7 @@ public class Controller implements Initializable
             PROMPT_CONFIRM_NEW_NICKNAME = "Подтвердите смену вашего имени. Новое имя:\n%s",
             PROMPT_EMPTY_MESSAGE = "Введённое сообщение пустое или содержит только пробельные символы.",
             PROMPT_BAN_NICKNAME_SPECIFIED = "\nУказанное имя пользователя некорректно или уже используется.",
-            PROMPT_UNABLE_TO_SEND_MESSAGE = "Не удадось отправить сообщение.",
+            PROMPT_UNABLE_TO_SEND_MESSAGE = "не удадось отправить сообщение",
             PROMPT_ADDRESSEE_NOTSELECTED = "Выберите получателя сообщения в списке участников чата и попробуйте снова.",
             PROMPT_CHANGE_NICKNAME = "\n\nОправьте новое имя как сообщение. Чат-сервер присвоит его Вам, если это" +
                                      " возможно.\n\nДля выхода из режима смены имени нажмите кнопку «Сменить ник» ещё раз.\n",
@@ -97,6 +100,7 @@ public class Controller implements Initializable
             changeNicknameMode = MODE_KEEP_NICKNAME,
             tipsMode = TIPS_ON
             ;
+    private static final Logger LOGGER = LogManager.getLogger(Controller.class);
 
     public static class ChatMessage implements Serializable
     {
@@ -121,9 +125,13 @@ public class Controller implements Initializable
 
 
     @Override public void initialize (URL location, ResourceBundle resources)
-    {   threadJfx = Thread.currentThread();
+    {
+        LOGGER.fatal("initialize():начало ------------------------------------------");
+        //LOGGER.info("initialize():начало");
+        threadJfx = Thread.currentThread();
         updateUserInterface (CANNOT_CHAT);
         txtareaMessages.appendText (WELCOME_TO_MARCHCHAT);
+        LOGGER.info("initialize():конец");
     }// initialize ()
 
 // Изменяем атрибуты элементов управления так, чтобы пользователь мог пользоваться чатом, но не мог
@@ -164,13 +172,12 @@ public class Controller implements Initializable
             dis = new DataInputStream (clientSideSocket.getInputStream());
             dos = new DataOutputStream (clientSideSocket.getOutputStream());
             boolOk = true;
-            print("\nconnect() подключен.");
+            LOGGER.info("connect() подключен");
         }
         catch (IOException ioe)
-        {   //onCmdExit ();
-            //disconnect();
-            closeSession (PROMPT_UNABLE_TO_CONNECT);
-            ioe.printStackTrace();
+        {   LOGGER.warn(PROMPT_UNABLE_TO_CONNECT);
+            closeSession ("\n"+PROMPT_UNABLE_TO_CONNECT);
+            LOGGER.throwing (Level.ERROR, ioe);
         }
         return boolOk;
     }// connect ()
@@ -178,16 +185,17 @@ public class Controller implements Initializable
 //Закрытие сокета и обнуление связанных с ним переменных.
     private void disconnect ()
     {
+        LOGGER.info("disconnect() - начало отключения");
         try
         {   if (clientSideSocket != null && !clientSideSocket.isClosed())
                 clientSideSocket.close();
         }
-        catch(IOException e) {e.printStackTrace();}
+        catch(IOException e) { LOGGER.throwing (Level.ERROR, e); }
         finally
         {   clientSideSocket = null;
             dis = null;
             dos = null;
-            print("\n\tdisconnect() - соединение разорвано.");
+            LOGGER.info("disconnect() звершился");
         }
     }// disconnect ()
 
@@ -213,7 +221,7 @@ public class Controller implements Initializable
  */
         String prompt = PROMPT_YOU_ARE_LOGED_OFF;
         boolean closeSessionYourSelf = false; //< определяет, какой поток будет вызывать closeSession: этот или Jfx
-        print("\n\tmessageDispatcher() выполняется.");
+        LOGGER.info("messageDispatcher() выполняется");
         synchronized (syncQue)
         {
             try
@@ -245,10 +253,10 @@ public class Controller implements Initializable
                 }//while
             }//try
             catch (InterruptedException e) //< искл.бросается вызовом thread.interrupt();
-            {   //e.printStackTrace();
+            {   LOGGER.throwing(e);
                 chatGettingClosed = true;
                 prompt = EMERGENCY_EXIT_FROM_CHAT;
-                if (DEBUG) print("\n\tmessageDispatcher(): threadCommandDispatcher is interrupted.");
+                LOGGER.info("messageDispatcher(): threadCommandDispatcher is interrupted");
                 //break;
             }
             finally
@@ -257,7 +265,7 @@ public class Controller implements Initializable
                     Platform.runLater(()->{  closeSession (finalPrompt);  });
                 else
                     closeSession (finalPrompt); //< если родительский поток закрыт, то всё закрываем сами
-                if (DEBUG) print ("\n\tmessageDispatcher() завершился.");
+                LOGGER.info("messageDispatcher() завершился");
                 //threadCommandDispatcher = null;
             }
         }//synchronized
@@ -268,7 +276,7 @@ public class Controller implements Initializable
     private void runTreadInputStream ()
     {
         String  msg;
-        print("\n\trunTreadInputStream() выполняется.");
+        LOGGER.info("runTreadInputStream() выполняется");
         try
         {   while (!chatGettingClosed)
             {
@@ -306,8 +314,11 @@ public class Controller implements Initializable
                             while (i < size)  as[i++] = dis.readUTF(); //строки
                             queueOffer (as);
                             break;
-                        default:  throw new UnsupportedOperationException (
+                        default:
+                        {   LOGGER.error("runTreadInputStream() : незарегистрированное сообщение:\n\t"+msg);
+                            throw new UnsupportedOperationException (
                                     "\nERROR @ runTreadInputStream() : незарегистрированное сообщение:\n\t" + msg);
+                        }
                     }//switch
                     syncQue.notify();
                     syncQue.wait();
@@ -317,8 +328,9 @@ public class Controller implements Initializable
         catch (InterruptedException e) //< искл.бросается вызовом thread.interrupt();
         {   chatGettingClosed = true;
             synchronized (syncQue) { inputqueue.offer (CMD_EXIT);} //если не можем слушать канал, то всем отбой.
-            if (DEBUG) print("\n\trunTreadInputStream(): threadListenServerCommands is interrupted.");
+            LOGGER.info("runTreadInputStream(): threadListenServerCommands is interrupted");
             //e.printStackTrace();
+            LOGGER.throwing(e);
         }
         catch (IOException e)
         {   chatGettingClosed = true;
@@ -326,11 +338,12 @@ public class Controller implements Initializable
             {
                 if (inputqueue != null) inputqueue.offer (CMD_EXIT);
             }
-            if (DEBUG) print("\n\tERROR @ runTreadInputStream(): соединение оборвалось.");
-            e.printStackTrace();
+            LOGGER.error("ERROR @ runTreadInputStream(): соединение оборвалось");
+            //e.printStackTrace();
+            LOGGER.throwing(Level.ERROR, e);
         }
         finally
-        {   if (DEBUG) print("\n\trunTreadInputStream() завершился (chatGettingClosed == "+chatGettingClosed+").");
+        {   LOGGER.info("runTreadInputStream() завершился (chatGettingClosed == "+chatGettingClosed+")");
             threadListenServerCommands = null;
         }
     }// runTreadInputStream ()
@@ -343,15 +356,16 @@ public class Controller implements Initializable
         {
             for (String s : lines)
                 if (!inputqueue.offer (s))
-                    throw new RuntimeException ("ERROR : unable to offer message.");
-
+                {   LOGGER.error("queueOffer() is unable to offer message");
+                    throw new RuntimeException ("ERROR @ queueOffer() : unable to offer message.");
+                }
             if (DEBUG)
-            {   print("\n\tin«");
-                for (int i=0,n=lines.length;   i<n;   i++)    print(((i>0)?" | ":"")+lines[i]);
-                print("»");
+            {   StringBuilder sb = new StringBuilder ("queueOffer();input message:\n\t");
+                for (int i=0,n=lines.length;   i<n;   i++)    sb.append (i>0?" | ":'«').append(lines[i]);
+                LOGGER.debug(sb.append('»').toString());
             }
         }
-        else if (DEBUG) print ("queueOffer() call while inputqueue == null.");
+        else LOGGER.error("queueOffer() call while inputqueue == null");
     }// queueOffer ()
 
 //Извлекаем команды из очереди и обрабатываем их. Вызывается только из threadJfx (через
@@ -390,13 +404,9 @@ public class Controller implements Initializable
                         throw new UnsupportedOperationException (
                             "ERROR queuePoll(): незарегистрированное сообщение: "+ msg);
                 }//switch
-                if (DEBUG)
-                {   print ("\n\tpoll : "+ msg + "\tboolOk = "+ boolOk);
-                    if (!boolOk) print ("^");
-                }
-                //chatGettingClosed = !boolOk; < эта провера перенесена в место вызова queuePoll()
+                LOGGER.debug(String.format("queuePoll() обработал msg «%s» с результатом: %b", msg, boolOk));
             }
-            else if (DEBUG) print (".");
+            else LOGGER.error("queuePoll() считал null");
             return boolOk;
         }//synchronized
     }// queuePoll ()
@@ -440,8 +450,7 @@ public class Controller implements Initializable
 
         readChatStorage();    //< Считываем историю чата из файла
         updateUserInterface (CAN_CHAT);
-
-        print("\n\tonCmdLogIn() : "+ nickname); //< для отладки
+        LOGGER.info("onCmdLogIn()/nickname: "+ nickname);
         return sendMessageToServer (CMD_LOGIN_READY); //< сообщаем о готовности войти в чат (теперь мы участники чата)
     }// onCmdLogIn ()
 
@@ -457,7 +466,7 @@ public class Controller implements Initializable
         txtfieldMessage.clear();//< перед отправкой запроса на сервер мы оставили имя в поле ввода.
                                 // Теперь нужно его оттуда убрать.
         txtfieldMessage.requestFocus();
-        if (DEBUG) System.out.printf ("\n\tпоменял имя на %s", nickname); //< для отладки
+        LOGGER.info("поменял имя на: "+ nickname);
         return true;
     }// onCmdChangeNickname ()
 
@@ -517,9 +526,9 @@ public class Controller implements Initializable
 // Также вызывается из: closeSession().
     boolean onCmdExit (String prompt)
     {
-        if (DEBUG) print("\n\tonCmdExit() начало.");
+        LOGGER.info("onCmdExit() начало");
         chatGettingClosed = true; //< это заставит звершиться дополнительные потоки
-        if (threadJfx != null)  updateUserInterface (CANNOT_CHAT); //TODO : нужен работающий threadJfx
+        if (threadJfx != null)  updateUserInterface (CANNOT_CHAT);
 
         if (stenographer != null) //< если stenographer == 0, то, скорее всего, ничего сохранять или выводить уже не нужно
         {
@@ -532,6 +541,7 @@ public class Controller implements Initializable
                 prompt = cm.toString();
             }
             txtareaMessages.appendText (prompt);
+            LOGGER.info("onCmdExit()/prompt: "+prompt);
             stenographer.close();
         }
         stenographer = null;
@@ -543,14 +553,14 @@ public class Controller implements Initializable
         {   if (threadListenServerCommands != null) threadListenServerCommands.join(1000);
             if (threadCommandDispatcher != null) threadCommandDispatcher.join(1000);
         }
-        catch (InterruptedException e){e.printStackTrace();}
+        catch (InterruptedException e) { LOGGER.throwing(Level.ERROR,e); }
         finally
         {   threadListenServerCommands = null;
             threadCommandDispatcher = null;
             if (inputqueue != null) inputqueue.clear();
             inputqueue = null;
         }
-        if (DEBUG) print("\n\tonCmdExit() завершение.");
+        LOGGER.info("onCmdExit() конец");
         return true;
     }// onCmdExit ()
 
@@ -559,6 +569,7 @@ public class Controller implements Initializable
 // Обработка ввода пользователем логина и пароля для входа чат.
     @FXML public void onactionLogin (ActionEvent actionEvent)
     {
+        LOGGER.info("onactionLogin() начало");
         String login = txtfieldUsernameField.getText(),
                password = txtfieldPassword.getText();
         boolean badLogin = login == null || login.isEmpty();
@@ -571,6 +582,7 @@ public class Controller implements Initializable
         }
         else if (!(chatGettingClosed = !connect()))
         {
+            LOGGER.info(String.format("onactionLogin()/ login: %s; password: %s", login, password));
             inputqueue = new LinkedList<>(); //< других потоков нет (можно не синхронизировать доступ)
 
             threadListenServerCommands = new Thread(() -> runTreadInputStream());
@@ -582,6 +594,7 @@ public class Controller implements Initializable
             sendMessageToServer (CMD_LOGIN, this.login, password);
         }
         else txtareaMessages.setText (PROMPT_UNABLE_TO_CONNECT);
+        LOGGER.info("onactionLogin() конец");
     }// onactionLogin ()
 
 // Кнопка «Выход». Пришлось отказаться от использования одной кнопки для входа в чат и выхода из чата, т.к.
@@ -593,8 +606,10 @@ public class Controller implements Initializable
 // для управления приложением предусмотрены кнопки.)
     @FXML public void onactionSendMessage ()
     {
+        LOGGER.info("onactionSendMessage() начало");
         String message = txtfieldMessage.getText();
         boolean boolSent = false;
+        LOGGER.info("onactionSendMessage()/message: "+message);
 
         if (message == null || message.trim().isEmpty())
         {
@@ -603,7 +618,7 @@ public class Controller implements Initializable
         else if (changeNicknameMode == MODE_CHANGE_NICKNAME) //< включен режим смены имени
         {
             if (alertConfirmationYesNo (ALERT_HEADER_RENAMING, String.format(PROMPT_CONFIRM_NEW_NICKNAME, message)) == ANSWER_YES)
-                sendMessageToServer(CMD_CHANGE_NICKNAME, message);
+                boolSent = sendMessageToServer(CMD_CHANGE_NICKNAME, message);
         }
         else if (privateMode == MODE_PRIVATE) // исходящие приватные сообщения
         {
@@ -624,12 +639,15 @@ public class Controller implements Initializable
         if (boolSent)
         {   txtfieldMessage.clear();
             txtfieldMessage.requestFocus();
+            LOGGER.info("onactionSendMessage() конец");
         }
+        else LOGGER.warn("onactionSendMessage() не справился");
     }// onactionSendMessage ()
 
 // Обработка нажатия на кнопку «Приватно» (переключение приват. режима).
     @FXML public void onactionTogglePrivateMode ()
-    {   privateMode = !privateMode;
+    {   LOGGER.info("onactionTogglePrivateMode() call");
+        privateMode = !privateMode;
         btnToolbarPrivate.setSelected (privateMode);
         if (tipsMode == TIPS_ON)
             txtareaMessages.appendText (privateMode ? PROMPT_PRIVATE_MODE_IS_ON : PROMPT_PRIVATE_MODE_IS_OFF);
@@ -637,7 +655,8 @@ public class Controller implements Initializable
 
 // Обработка нажатия на кнопку «Сменить ник» (переключение режима смены ника).
     @FXML public void onactionChangeNickname ()
-    {   changeNicknameMode = !changeNicknameMode;
+    {   LOGGER.info("onactionChangeNickname() call");
+        changeNicknameMode = !changeNicknameMode;
         btnToolbarChangeNickname.setSelected (changeNicknameMode);
         if (changeNicknameMode == MODE_CHANGE_NICKNAME && tipsMode == TIPS_ON)
             txtareaMessages.appendText (PROMPT_CHANGE_NICKNAME);
@@ -645,7 +664,8 @@ public class Controller implements Initializable
 
 // Обработка нажатия на кнопку «Подсказки» (переключение режима показа подсказок к интерфейсу).
     @FXML public void onactionTips ()
-    {   tipsMode = !tipsMode;
+    {   LOGGER.info("onactionTips() call");
+        tipsMode = !tipsMode;
         if (tipsMode == TIPS_ON)
             txtareaMessages.appendText (PROMPT_TIPS_ON);
     }// onactionTips ()
@@ -656,19 +676,21 @@ public class Controller implements Initializable
     private boolean sendMessageToServer (String ... lines)
     {
         boolean boolSent = false;
+        StringBuilder sb;
         if (lines != null  &&  lines.length > 0  &&  dos != null)
         try
-        {   if (DEBUG) print("\n\tout: ");
+        {   if (DEBUG) sb = new StringBuilder("sendMessageToServer() call on :\n\t«");
             for (String msg : lines)
             {
                 dos.writeUTF(msg);
-                if (DEBUG) print(msg+";\t");
+                if (DEBUG) sb.append(msg).append(" | ");
             }
+            if (DEBUG) LOGGER.debug(sb.append('»').toString());
             boolSent = true;
         }
         catch (IOException e)
-        {   print (" - ERROR @ sendMessageToServer() : "+ PROMPT_UNABLE_TO_SEND_MESSAGE);
-            //e.printStackTrace();
+        {   LOGGER.info ("ERROR @ sendMessageToServer() - "+ PROMPT_UNABLE_TO_SEND_MESSAGE);
+            LOGGER.throwing (Level.ERROR, e);
         }
         return boolSent;
     }// sendMessageToServer ()
@@ -702,11 +724,14 @@ public class Controller implements Initializable
 // Сейчас имя файла состоит из логина пользователя и расширения chat.
     void readChatStorage ()
     {
-        stenographer = new MessageStenographer<> (login +".chat");
-        List<ChatMessage> cmlist = stenographer.getData();
-        txtareaMessages.clear(); //< очищаем окно чата (чтобы не мучаться, т.к. юзер может и под другой
-        for (Object cm : cmlist) //           учёткой перезайти, для которой есть другой файл истории…)
-            txtareaMessages.appendText (cm.toString());
+        if (validateStrings(login))
+        {   stenographer = new MessageStenographer<> (login +".chat");
+            List<ChatMessage> cmlist = stenographer.getData();
+            txtareaMessages.clear(); //< очищаем окно чата (чтобы не мучаться, т.к. юзер может и под другой
+            for (Object cm : cmlist) //           учёткой перезайти, для которой есть другой файл истории…)
+                txtareaMessages.appendText (cm.toString());
+        }
+        else LOGGER.error("readChatStorage() вызван при login = "+login);
     }// readChatStorage ()
 
     @Override public String toString() { return "Controller:"+ nickname; }
@@ -714,14 +739,17 @@ public class Controller implements Initializable
 //(Вспомогательная.) Проверяет строку на пригодность для использования в качестве логина, пароля, ника и т.п.
     public static boolean validateStrings (String ... lines)
     {
-        if (lines != null)
-        {   int i = -1;
-            while (++i < lines.length)
-                if (lines[i] == null || lines[i].trim().isEmpty())
-                    break;
-            return i == lines.length;
+        boolean result = lines != null;
+        if (result)
+        for (String ln : lines)
+        if (ln == null || ln.trim().isEmpty())
+        {
+            result = false;
+            LOGGER.error(String.format("validateStrings() обнаружил: %s", ln));
+            break;
         }
-        return false;
+        else LOGGER.info(String.format("в validateStrings() передано %s", ln));
+        return result;
     }// validateString ()
 
 //Выполняем действия, полагающиеся при выходе из чата. Вызывается потоком threadJfx из:
@@ -735,13 +763,15 @@ public class Controller implements Initializable
     - отправка сообщения CMD_EXIT на сервер (если выход инициализировал клиент);
     - вызов onCmdExit для изменения некоторых переменных и остановки доп.потоков;
     - вызов disconnect().
-*/
+*/      LOGGER.debug(String.format("closeSession() вызван с параметром: %s", prompt));
         sendMessageToServer (CMD_EXIT);   //< выполняется при необходимости
         onCmdExit (prompt); //< модно не синхронизировать, т.к. в этот блок есть доступ только у threadJfx
         disconnect();
+        LOGGER.debug("closeSession() завершился");
     }// closeSession ()
 
     public void print (String s) {System.out.print(s);}
+    public void println (String s) {System.out.print("\n"+s);}
 
 }// class Controller
 
@@ -751,4 +781,6 @@ public class Controller implements Initializable
     TODO : Преподаватель «анонсировал» короткое чтение истории чата из файла (применительно к его версии чата):
             Files.lines(Paths.get("log.txt")).collect(Collectors.joining("\n"));
 
+    TODO * у нас получается захватить чужой ник, даже если хозяин вошёл в чат (если хозяин в чате, то ещё и
+            список отображается неверно).
 */

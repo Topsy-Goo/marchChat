@@ -38,6 +38,7 @@ public class ClientHandler
 
     public ClientHandler (Server serv, Socket serverSideSocket)
     {
+        LOGGER.fatal("--------------------------------------------");
         if (serverSideSocket == null || serv == null)  throw new IllegalArgumentException();
 
         this.server = serv;
@@ -112,7 +113,7 @@ public class ClientHandler
         }
         catch (InterruptedException e)
         {
-            LOGGER.throwing (Level.ERROR, e);//e.printStackTrace();
+            LOGGER.throwing(e);//e.printStackTrace();
         }
         catch (IOException e)
         {   msg = null;
@@ -275,6 +276,4 @@ public class ClientHandler
 
     @Override public String toString ()   {   return "CHandler:"+ getClientName();   } //< для отладки
 
-    public void print (String s) {System.out.print(s);}
-    public void println (String s) {System.out.print("\n"+s);}
 }// class ClientHandler

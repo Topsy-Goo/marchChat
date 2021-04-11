@@ -1,4 +1,4 @@
-package ru.geekbrains.march.chat.server;
+package ru.geekbrains.antonovdv.java3.lesson4;
 
 public class WaitNotifyApp
 {

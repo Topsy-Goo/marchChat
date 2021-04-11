@@ -1,8 +1,12 @@
 package ru.geekbrains.march.chat.server;
 
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 public class ServerApp
 {
+    private static final Logger LOGGER = LogManager.getLogger (ServerApp.class);
     public static final boolean DEBUG = true; //< для отладки
     public static final String
             CLASS_NAME = "org.sqlite.JDBC",
@@ -15,8 +19,6 @@ public class ServerApp
             CMD_EXIT = "/exit",
             CMD_CONNECTED = "/connected", //< посылается клиенту из конструктора ClientHandler()
             CMD_LOGIN_READY = "/loginready",    //клиент принял от сервера ник и готов продолжить вход в чат
-            //CMD_STAT = "/stat",
-            //CMD_WHOAMI = "/who_am_i",
             //CMD_ONLINE = "/online",
             CMD_LOGIN = "/login",
             CMD_BADLOGIN = "/badlogin",
@@ -31,9 +33,10 @@ public class ServerApp
 
     public static void main (String[] args)
     {
+        LOGGER.fatal("---------------------------------------------------------------------------------");
         //new WaitNotifyApp().treadWaitNotifyTest();
         new Server (SERVER_PORT);
-        System.out.print(APP_IS_OFF);
+        LOGGER.info(APP_IS_OFF);
     }// main ()
 
 /*  Я счёл нецелесообразным использовать пул потоков в классе Controller, поэтому даже не пробовал его там применять.

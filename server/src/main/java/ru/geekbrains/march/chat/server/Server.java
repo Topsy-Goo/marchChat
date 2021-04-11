@@ -19,7 +19,7 @@ public class Server
             FORMAT_NO_SUCH_USER = "\nКлиент %s отсутствует в чате.",
             SERVERNAME_BASE_ = "ЧатСервер-",
             SESSION_START = "Начало сессии.",
-            WAITING_FOR_CLIENTS = "Ждём подклюение клиента... ",
+            WAITING_FOR_CLIENTS = "Ждём подклюение клиента...",
             //UNABLE_TOCREATE_HANDLER = "\nНе удалось создать ClientHandler.",
             FORMAT_RENAMING_TO_ = "(меняет имя на %s)",
             FORMAT_LEFT_CHAT = "(%s вышел из чата)",
@@ -44,8 +44,9 @@ public class Server
 
     public Server (int port)
     {
+        //LOGGER.fatal("------------------------------------------------------------------------------------------------");
         String methodname = String.format("Server(%d): ", port);
-        LOGGER.info(methodname+"начал работу.");
+        LOGGER.info(methodname+"начал работу -------------------------------");
 
         if (port < PORT_MIN || port > PORT_MAX)    throw new IllegalArgumentException();
 
@@ -55,7 +56,7 @@ public class Server
         syncUpdatePublicClientsList();
 
         //несколько серверов (запущенные на одной машине) могут использовать БД парллельно
-        LOGGER.info(methodname+"подключение к БД.");
+        LOGGER.info(methodname+"подключение к БД");
         synchronized (syncAuth)
         {   if (authentificator == null)
                 authentificator = new JdbcAuthentificationProvider();
@@ -68,21 +69,21 @@ public class Server
         LOGGER.info(methodname+"создание ServerSocket.");
         try (ServerSocket servsocket = new ServerSocket (port))
         {
-            LOGGER.info(methodname+"создание консольного потока.");
+            LOGGER.info(methodname+"создание консольного потока");
             new Thread(() -> runThreadConsoleToClient (servsocket)).start();
-            println ("\t"+methodname);  print(SESSION_START);
+            LOGGER.fatal(String.format("%s\n\t%s", methodname, SESSION_START));
 
-            LOGGER.info(methodname+"вход в основной цикл.");
+            LOGGER.info(methodname+"вход в основной цикл");
             while (!serverGettingOff)
             {
-                println ("\t"+methodname);  print(WAITING_FOR_CLIENTS);
+                LOGGER.fatal(String.format("%s\n\t%s", methodname, WAITING_FOR_CLIENTS));
                 Socket serverSideSocket = servsocket.accept();
-                LOGGER.info(methodname+"получен запрос на подключение; создаём ClientHandler.");
+                LOGGER.info(methodname+"получен запрос на подключение; создаём ClientHandler");
                 //executorservice.execute(()->{
                     new ClientHandler (this, serverSideSocket);
                     //print ("\n\t"+Thread.currentThread().getName());
                 //});
-                LOGGER.info(methodname+"ClientHandler создан.");
+                LOGGER.info(methodname+"ClientHandler создан");
             }
             LOGGER.info(methodname+"выход из основного цикла.");
         }
@@ -95,7 +96,7 @@ public class Server
             LOGGER.info (methodname+SERVER_IS_OFF);
             //(После закрытия ServerSocket'а открытые соединения продолжают работать, но создавать новые нет возможности.)
         }
-        LOGGER.info(methodname+"завершил работу.");
+        LOGGER.info(methodname+"завершил работу");
     }// Server ()
 
 
@@ -159,7 +160,7 @@ public class Server
                 }
             }
         }
-        catch (IOException ex)  {   LOGGER.throwing(Level.ERROR, ex); /*ex.printStackTrace();*/  }
+        catch (IOException ex)  {   LOGGER.throwing (Level.ERROR, ex); /*ex.printStackTrace();*/  }
         finally  {  LOGGER.info("консольный поток завершился.");  }
     }// runThreadConsoleToClient ()
 

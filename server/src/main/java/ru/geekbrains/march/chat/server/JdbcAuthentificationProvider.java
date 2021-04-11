@@ -1,5 +1,9 @@
 package ru.geekbrains.march.chat.server;
 
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 import java.sql.*;
 
 import static ru.geekbrains.march.chat.server.ServerApp.*;
@@ -20,9 +24,11 @@ public class JdbcAuthentificationProvider implements Authentificator
     private Statement statement;
     private PreparedStatement psUpdate1By1, psInsert3Fld, psDeleteBy1;
     private DbConnection dbConnection;
+    private static final Logger LOGGER = LogManager.getLogger (JdbcAuthentificationProvider.class);
 
     public JdbcAuthentificationProvider ()
     {
+        LOGGER.info("JdbcAuthentificationProvider() начало");
         dbConnection = new DbConnection();
         statement = dbConnection.getStatement();
         Connection connection = dbConnection.getConnection();
@@ -39,6 +45,7 @@ public class JdbcAuthentificationProvider implements Authentificator
             close();
             throw new RuntimeException("\nCannot create object JdbcAuthentificationProvider.");
         }
+        finally {LOGGER.info("JdbcAuthentificationProvider():конец");}
     }// JdbcAuthentificationProvider ()
 
 
@@ -86,6 +93,7 @@ public class JdbcAuthentificationProvider implements Authentificator
         String result = null;   //< индикатор неустранимой ошибки
         if (validateStrings (prevName, newName))
         {
+            LOGGER.debug(String.format("переименование %s >> %s", prevName, newName));
             try
             {   psUpdate1By1.setString (1, newName);
                 psUpdate1By1.setString (2, prevName);
@@ -100,14 +108,15 @@ public class JdbcAuthentificationProvider implements Authentificator
                 {   if (rs.next())
                          result = rs.getString (FLD_NICK); //или rs.getString (№);
                     else result = ""; //< индикатор того, что запись не состоялась
+                    LOGGER.debug("ответ базы : "+ result);
                 }
-                catch (SQLException throwables) { throwables.printStackTrace(); }
+                catch (SQLException throwables) { LOGGER.throwing(Level.ERROR, throwables);/*.printStackTrace();*/ }
             }
             catch (SQLException throwables)
-            {   throwables.printStackTrace();
-                throw new RuntimeException();
+            {   LOGGER.throwing(Level.ERROR, throwables);//throwables.printStackTrace();
+                //throw new RuntimeException();
             }
-        }
+        } else LOGGER.error("переименование : битые параметры.");
         return result;
     }// rename ()
 

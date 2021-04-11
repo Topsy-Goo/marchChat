@@ -3,7 +3,7 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
-import ru.geekbrains.AntonovDV.java3.lesson6.CalculatorApp;
+import ru.geekbrains.antonovdv.java3.lesson6.CalculatorApp;
 
 import java.util.ArrayList;
 import java.util.List;

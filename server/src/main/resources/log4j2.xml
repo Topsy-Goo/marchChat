@@ -1,0 +1,160 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<!-- слупили этот текст из методички и подправили, чтобы был похож на то, что есть у преподавателя + наши комментарии. -->
+
+<!-- парметры:
+	- monitorInterval="30" - The minimum amount of time, in seconds, that must elapse before the file configuration is checked for changes.
+	- status = "fatal" - The level of internal Log4j events that should be logged to the console. Valid values for this attribute are "trace", "debug", "info", "warn", "error" and "fatal". Log4j will log details about initialization, rollover and other internal actions to the status logger. Setting status="trace" is one of the first tools available to you if you need to troubleshoot log4j.
+						 (Alternatively, setting system property log4j2.debug will also print internal Log4j2 logging to the console, including internal logging that took place before the configuration file was found.)
+	- xmlns="..." - ?
+	- advertiser="multicastdns" - ?
+	- dest	Either "err" for stderr, "out" for stdout, a file path, or a URL.
+	- packages	A comma separated list of package names to search for plugins. Plugins are only loaded once per classloader so changing this value may not have any effect upon reconfiguration.
+	- strict	Enables the use of the strict XML format. Not supported in JSON configurations.
+	- verbose	Enables diagnostic information while loading plugins.	-->
+<Configuration> <!-- Configuration xmlns="http://logging.apache.org/log4j/2.0/config" -->
+<!-- Закоментированный выше тэг <Configuration …> делает аппендер <File …> недействительным. -->
+
+	<!-- Создаём свойство   basePath = logs (в корне проекта - в march-chat - руками создали папку logs) -->
+    <Properties>
+        <Property name="basePath">logs</Property>
+    </Properties>
+
+<!-- Теперь мы должны определить, как будет выглядеть сообщение и куда оно будет выведено, если в коде мы напишем
+		что-то вроде : logger.info("Hello, World!"). -->
+
+
+	<!-- Создаём аппендеры. Аппендеры подчиняются Root-логгеру и умеют выводить инф. в соотв. места назначения. (См. методичку.) -->
+    <Appenders>
+		<!-- Тип аппендера указывает место назначения, в которое аппендер будет выводить переданную ему инф-ю. Параметры:
+		name - служит для ссылок на данный аппендер;
+		fileName - указывает имя файла относительно ${basePath}, если аппендер выводит в файл (см.раздел <Properties>
+				   выше в этом файле);
+		target - поток ввода/вывода, если аппендер выводит в консоль (SYSTEM_OUT, SYSTEM_ERR);
+		appent - опред., будет ли инф-я перезаписываться (удаляться при старте логгирования) или дописываться. -->
+
+        <Console name="STDOUT" target="SYSTEM_OUT">
+			<!-- PatternLayout задаёт формат, в котором аппендер будет выводить переданное ему сообщение «Hello, World!». -->
+			<!-- Layout'ы бываю разные: pattern, json, html, xml, yaml. -->
+<!--            <PatternLayout pattern="%-5p %d{yyyy-MM-dd HH:mm:ss} [%t] %C (%F:%L) - %m%n" />-->
+            <PatternLayout pattern="%n%-5p %c{2} [%t] (%F:%L)>> %m." />
+        </Console>
+
+<!--        <File name="HANDLER" fileName="${basePath}/clienthandler.log" append="true">-->
+<!--            <PatternLayout pattern="%n%-5p %d{yyyy-MM-dd HH:mm} [%t] %C{2} (%F:%L)>> %m." />-->
+<!--        </File>-->
+
+		<!-- Если лог-файл назвать server.log, то логирование в него ведётся неправильно: в начале
+		файла оказываются двоичные данные, из-за чего добавленная текстовая часть не читается обычным
+		способом. Если файл удалить и вместо него создать, например, server01.log, то всё приходит в норму. -->
+<!--        <File name="SERVER" fileName="${basePath}/server01.log" append="true">-->
+<!--            <PatternLayout pattern="%n%-5p [%t] %C{2} (%F:%L)>> %m." />-->
+<!--        </File>-->
+
+<!--  trace < debug < info < warn < error < fatal		%d{yyyy-MM-dd HH:mm} 	-->
+
+        <File name="SERVERAPP" fileName="${basePath}/serverapp.log" append="false">
+            <PatternLayout pattern="%n%-5p [%t] %C{2} (%F:%L)>> %m." />
+        </File>
+
+<!--        <File name="CONTROLLER" fileName="${basePath}/controller.log" append="true">-->
+<!--            <PatternLayout pattern="%n%-5p [%t] %C{2} (%F:%L) - %m." />-->
+<!--        </File>-->
+
+        <File name="MAIN" fileName="${basePath}/main.log" append="false" >
+            <PatternLayout pattern="%n%-5p [%t] %C{2} (%F:%L)>> %m." />
+        </File>
+
+<!--        <File name="AUTHENTIFICATOR" fileName="${basePath}/authentificator.log" append="true">-->
+<!--            <PatternLayout pattern="%n%-5p %d{yyyy-MM-dd HH:mm} [%t] %C{2} (%F:%L)>> %m." />-->
+<!--        </File>-->
+
+    </Appenders>
+
+	<!-- Кажется, тут мы задаём низший разрешённый приоритет для логгирования : level="debug". -->
+
+	<!-- Конфигурируем логгеры. -->
+	<!-- Root логгер присутствует всегда. -->
+    <Loggers>
+		<!-- параметры:
+		- level - задаёт фильтр для сообщений, которые логгер будет обрабатывать. Это простейший фильтр. Для более
+		  точной настройки фильтрации применяются другие фильтры (см.документацию);
+		- AppenderRef - задаёт имя аппендера, который будет использоваться логгером для вывода сообщений;
+		- name - имя класса или пакета. В древовидной системе проекта это имя задаёт уровень, с которого в логгер
+		  будут стекаться сообщения: логгер будет получать сообщения со своего уровня и со всех ниже расположенных
+		  уровней.
+		- additivity = "false/true" управлет передачей наверх сообщений. -->
+        <Root level="trace">
+			<!-- Root перечисляет аппендеры, которые ему подчиняются. Если их все закомментировать, то логгирование этот
+			логгер выполнять перестанет. -->
+            <AppenderRef ref="STDOUT" />
+<!--        <AppenderRef ref="FILE1" />-->
+        </Root>
+
+		<!-- Дополнительные логгеры, пользовательские, созданные руками.
+
+		• Для генерирования сообщений в классах создаются объекты-логгеры, а в методах классов размещаются вызовы
+		методов этих объектов-логгеров. Имеются в виду те самые логгеры, которые создаются при пом.
+			private static final Logger LOGGER = LogManager.getLogger(SomeClass.class)
+			и вызываются при пом.
+			LOGGER.fatal("сообщение") или LOGGER.debug("сообщение"), или …
+
+		• Если есть необходимость выводить сообщения прямо в корневой логгер, минуя дополнительные логгеры, то в
+		соотв. классах нужно создать объекты-логгеры при пом.
+			private static final Logger LOGGER = LogManager.getRootLogger(SomeClass.class).
+
+		• Логгеры получают сообщения со своего уровня и с подчинённых уровней, обрабатывают их и передают
+		логгеру, стоящему выше в иерархии логгеров. «Наверх» передаются ВСЕ сообщения, полученные логгером.
+		(Кажется, такую обязательную передачу наверх можно как-то отключить.)
+		(Кажется, наверх передаются только сообщения, прошедшие фильтрацию.)
+
+		• Нет необходимости создавать логгер для каждого уровня проекта. Вообще говоря, для вывода всех соощений
+		достаточно root-логгера с настройкой level="trace". Но для структурированного и/или избирательного вывода
+		сообщений (особенно, в больших проектах) не обойтись без доп.логеров.
+
+		• Логгер может быть назначен не на конкретный класс, а на пакет. В этом случае он будет получать сообщения ото всех
+		классов в контролируемом пакете. Разумеется, это не помешает создавать логгеры для классов этого пакета или для дочерних
+		пакетов, но нужно помнить, что логгер пакета будет получать сообщения ото всех логгеров клавссов этого пакета и отовсех
+		логгеров дочерних пакетов.
+
+		• Все логгеры, включая корневой, выводят только те сообщения, которые удовлетворяют значению параметра level (
+		т.е. логгеры фильтруют сообщения перед выводом).
+
+		• Все логгеры, включая корневой, выводят КАЖДОЕ прошедшее «фильтр» сообщение при пом. ВСЕХ своих аппендеров.
+
+		• Если у логгера нет аппендеров, то логгер ничего не выводит, и его функция сводится с передаче сообщений наверх.
+
+		• Учитывая вышеизсложенное обычно не имеет смысла делать у логгеров аппендеры, идентичные аппендерам вышестоящих
+		логгеров. Если, скажем, логгер выводит сообщения в файл log1.txt, и один из вышестоящих логгеров делает то же
+		самое, то каждое сообщение, прошедшее фильтрацию в обоих логгерах, будет выведено в файл log1.txt дважды.
+		-->
+
+<!--  trace < debug < info < warn < error < fatal			-->
+
+        <Logger name="ru.geekbrains.march.chat.server" level="trace" >
+        	<AppenderRef ref="SERVERAPP"/>
+        </Logger>
+
+<!--        <Logger name="ru.geekbrains.march.chat.server.ServerApp" level="trace" >-->
+<!--        	<AppenderRef ref="SERVERAPP"/>-->
+<!--        </Logger>-->
+
+<!--        <Logger name="ru.geekbrains.march.chat.server.ClientHandler" level="trace" >-->
+<!--        	<AppenderRef ref="SERVERAPP"/>-->
+<!--        </Logger>-->
+
+<!--        <Logger name="ru.geekbrains.march.chat.server.JdbcAuthentificationProvider" level="trace" >-->
+<!--        	<AppenderRef ref="SERVERAPP"/>-->
+<!--        </Logger>-->
+
+        <Logger name="ru.geekbrains.march.chat.client" level="trace" >
+        	<AppenderRef ref="MAIN"/>
+        </Logger>
+
+<!--        <Logger name="ru.geekbrains.march.chat.client.Main" level="trace" >-->
+<!--        	<AppenderRef ref="MAIN"/>-->
+<!--        </Logger>-->
+
+    </Loggers>
+
+</Configuration>

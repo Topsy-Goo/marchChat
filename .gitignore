@@ -6,3 +6,17 @@
 /client/target/classes/hw8window.fxml
 /marchchat.db
 /server/src/main/java/ru/geekbrains/march/chat/server/фрагменты.java
+/server/src/test/фрагменты.java
+/logs/controller.log
+/logs/handler.log
+/server/target/classes/log4j2.xml
+/logs/server01.log
+/logs/serverapp.log
+/server/target/test-classes/CalcTest.class
+/server/target/classes/ru/geekbrains/AntonovDV/java3/lesson6/CalculatorApp.class
+/server/target/test-classes/Fragments.class
+/server/target/classes/ru/geekbrains/AntonovDV/java3/lesson4/WaitNotifyApp.class
+/server/src/test/java/фрагменты.java
+/logs/authentificator.log
+/logs/clienthandler.log
+/logs/main.log

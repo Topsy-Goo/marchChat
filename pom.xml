@@ -18,4 +18,26 @@
 		<maven.compiler.target>8</maven.compiler.target>
 	</properties>
 
+	<dependencies>
+
+		<dependency>	<!-- поддержка отладчика JUnit v5 -->
+			<groupId>org.junit.jupiter</groupId>
+			<artifactId>junit-jupiter</artifactId>
+			<version>5.6.2</version>
+			<scope>test</scope> <!-- работаем только в папке src/test/java проекта «march-chat.server» (зелёная папка) -->
+		</dependency>
+
+		<dependency>	<!-- поддержка логгера log4j v2 (aka log4j2) -->
+			<groupId>org.apache.logging.log4j</groupId>
+			<artifactId>log4j-core</artifactId>
+			<version>2.13.0</version>
+		</dependency>
+
+		<dependency>	<!-- API для логгера -->
+			<groupId>org.apache.logging.log4j</groupId>
+			<artifactId>log4j-api</artifactId>
+			<version>2.13.0</version>
+		</dependency>
+
+	</dependencies>
 </project>

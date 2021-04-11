@@ -13,6 +13,7 @@ public class MessageStenographer<T extends Serializable> implements Stenographer
 
     public MessageStenographer (String filename)
     {
+        //LOGGER.fatal("------------------------------------------------------------------------------------------------");
         if (filename == null || (filename = filename.trim()).isEmpty())
             throw new IllegalArgumentException ();
 
