@@ -1,9 +1,14 @@
 package ru.geekbrains.march.chat.server;
 
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
 import java.net.Socket;
+import java.util.Arrays;
 
 import static ru.geekbrains.march.chat.server.ServerApp.*;
 
@@ -19,6 +24,7 @@ public class ClientHandler
     private DataOutputStream dos;
     private Thread threadClientToServer, threadMain;
 
+    private static final Logger LOGGER = LogManager.getLogger (ClientHandler.class);
     private final static String
             CLIENT_CREATED = "клиент создан.",
             FORMAT_UNABLE_SEND_MESSAGE_TO = "Не удалось отправить сообщение:\n\t%s",
@@ -32,8 +38,7 @@ public class ClientHandler
 
     public ClientHandler (Server serv, Socket serverSideSocket)
     {
-        if (serverSideSocket == null || serv == null)
-            throw new IllegalArgumentException();
+        if (serverSideSocket == null || serv == null)  throw new IllegalArgumentException();
 
         this.server = serv;
         this.socket = serverSideSocket;
@@ -45,8 +50,8 @@ public class ClientHandler
             threadClientToServer.start();
         }
         catch (IOException ioe)
-        {   close();
-            ioe.printStackTrace();
+        {   LOGGER.throwing (Level.ERROR, ioe);//ioe.printStackTrace();
+            close();
         }
         //finally
         //{   if (DEBUG) print (String.format("\n\t%s, thread's class : %s; thread's name : %s",
@@ -54,6 +59,7 @@ public class ClientHandler
         //                                threadMain.getClass().getName(),
         //                                Thread.currentThread().getName()));
         //}
+        LOGGER.info("конструктор ClientHandler отработал.");
     }//ClientHandler (Socket)
 
 // Закрытие соединения и завершение работы.
@@ -68,14 +74,17 @@ public class ClientHandler
         {   if (threadClientToServer != null)   threadClientToServer.join(1000);
             if (socket != null && !socket.isClosed())   socket.close();
         }
-        catch (InterruptedException | IOException e) { e.printStackTrace(); }
+        catch (InterruptedException | IOException e)
+        {   LOGGER.throwing (Level.ERROR, e);//e.printStackTrace();
+        }
         finally
         {   threadClientToServer = null;
             socket = null;
             dos = null;
             dis = null;
-            if (DEBUG) System.out.printf ("\n(ClientHandler.close() : клиент %s закрылся.)", nickname); //для отладки
+            LOGGER.debug (String.format("ClientHandler.close(): клиент %s закрылся.", nickname));
             nickname = null;
+            threadMain = null;
         }
     }// close ()
 
@@ -86,8 +95,9 @@ public class ClientHandler
         try
         {   while (!connectionGettingClosed)
             if (dis.available() > 0)
-            {   msg = dis.readUTF();
-                if (DEBUG) System.out.print(".");
+            {
+                msg = dis.readUTF();
+                LOGGER.trace("от клиента получено сообщение: "+msg);
                 break;
             }
             else
@@ -100,18 +110,24 @@ public class ClientHandler
                 }
             }
         }
-        catch (InterruptedException e) {e.printStackTrace();}
+        catch (InterruptedException e)
+        {
+            LOGGER.throwing (Level.ERROR, e);//e.printStackTrace();
+        }
         catch (IOException e)
         {   msg = null;
-            e.printStackTrace();
+            LOGGER.throwing (Level.ERROR, e);//e.printStackTrace();
         }
         return msg;
     }// readInputStreamUTF ()
 
+//Run-метод потока threadClientToServer.
     private void runThreadClientToServer ()
     {
+        LOGGER.info("поток «"+Thread.currentThread().getName()+"» начал работу.");
         String msg;
         syncSendMessageToClient (CMD_CONNECTED);
+
         while (!connectionGettingClosed && (msg = readInputStreamUTF()) != null)
         {
             msg = msg.trim().toLowerCase();
@@ -133,44 +149,51 @@ public class ClientHandler
                 else
                 {   boolean boolSent = false;
                     if (msg.equals (CMD_CHAT_MSG))
+                    {
                         boolSent = server.syncBroadcastMessage (readInputStreamUTF(), this);
+                        if (!boolSent) LOGGER.warn("сервер не смог отправить публичное сообщение нашего клиента.");
+                    }
                     else
-                    if (msg.equals (CMD_PRIVATE_MSG)) //< Клиент отправил личное сообщение клиенту.
+                    if (msg.equals (CMD_PRIVATE_MSG)) //< Клиент отправил личное сообщение к.-л. клиенту.
                     {
                         boolSent = server.syncSendPrivateMessage (
                                         readInputStreamUTF(), // Кому
                                         readInputStreamUTF(), // Сообщение
                                         this); // От кого
+                        if (!boolSent) LOGGER.warn("сервер не смог отправить приватное сообщение нашего клиента.");
                     }
-                    else throw new UnsupportedOperationException (
-                            "ERROR @ runThreadClientToServer() : незарегистрированное сообщение.");
-
+                    else
+                    {   LOGGER.error("runThreadClientToServer(): получено незарегистрированное сообщение: "+msg+".");
+                        throw new UnsupportedOperationException (
+                            "ERROR @ runThreadClientToServer() : незарегистрированное сообщение: "+msg+".");
+                    }
                     if (!boolSent)
-                        syncSendMessageToClient(String.format (FORMAT_UNABLE_SEND_MESSAGE_TO, msg));
+                        syncSendMessageToClient (String.format (FORMAT_UNABLE_SEND_MESSAGE_TO, msg));
                 }
             }
         }//while
+        LOGGER.info("ClientHandler.runThreadClientToServer() - закрывается");
         close();
-        if (DEBUG) System.out.print ("\nClientHandler.runThreadClientToServer() - поток закрылся."); //для отладки
+        LOGGER.info("поток «"+Thread.currentThread().getName()+"» завершил работу.");
     }// runThreadClientToServer ()
 //----------------------------------------- команды ------------------------
 //Обработчик команды CMD_EXIT
-    private void onCmdExit ()
-    {
-        connectionGettingClosed = true;
-    }// onCmdExit ()
+    private void onCmdExit ()  {   connectionGettingClosed = true;   }// onCmdExit ()
 
 //Обработчик команды CMD_LOGIN.
     private void onCmdLogin ()
     {
         if (nickname != null)
+        {   LOGGER.error("вызов onCmdLogin() при nickname != null (nickname == "+nickname+"). повторная регистрация?");
             throw new RuntimeException("ERROR @ runThreadClientToServer() : повторная регистрация?");
+        }
 
         nickname = server.syncValidateOnLogin (readInputStreamUTF(), readInputStreamUTF(), this);
-        if (nickname == null)
-        {   syncSendMessageToClient (CMD_BADLOGIN, PROMPT_LOGINERROR_INVALID);
-        }
-        else if (nickname.isEmpty())
+        LOGGER.debug("от сервера получен ник: "+ nickname);
+
+        if (nickname == null)   syncSendMessageToClient (CMD_BADLOGIN, PROMPT_LOGINERROR_INVALID);
+        else
+        if (nickname.isEmpty())
         {   nickname = null;
             syncSendMessageToClient (CMD_BADLOGIN, PROMPT_LOGINERROR_BUSY);
         }
@@ -190,33 +213,27 @@ public class ClientHandler
         String newnickname = readInputStreamUTF(),
                result = server.syncChangeNickname (this, newnickname);
 
-        if (result == null)
-        {   syncSendMessageToClient (CMD_BADNICKNAME, PROMPT_RENAMING_ERROR);
-        }
-        else if (result.isEmpty())
-        {   syncSendMessageToClient (CMD_BADNICKNAME, PROMPT_RENAMING_FAILED);
-        }
+        LOGGER.debug("запрошенный ник: "+ newnickname);
+        LOGGER.debug("от сервера получен ник: "+ result);
+
+        if (result == null)   syncSendMessageToClient (CMD_BADNICKNAME, PROMPT_RENAMING_ERROR);
+        else
+        if (result.isEmpty()) syncSendMessageToClient (CMD_BADNICKNAME, PROMPT_RENAMING_FAILED);
         else
         {   nickname = newnickname;
             syncSendMessageToClient (CMD_CHANGE_NICKNAME, nickname);
         }
     }// onCmdChangeNickname ()
 
-//Обработчик команды CMD_CLIENTS_LIST.
-    private void onCmdClientsList ()
-    {
-        String[] clientslist = server.getClientsList();
-        if (clientslist != null)
-        {   syncSendMessageToClient (CMD_CLIENTS_LIST);
-            syncSendMessageToClient (String.valueOf (clientslist.length));
-            syncSendMessageToClient (clientslist);
-        }
-    }// onCmdClientsList ()
+//Обработчик команды CMD_CLIENTS_LIST. (Клиент запрашивает список участников чата.)
+    private void onCmdClientsList ()    {   sendClientsList();   }// onCmdClientsList ()
+
 //----------------------------------------- вспомогательные ------------------------
 //Отсылаем клиенту новый список клиентов.
     private void sendClientsList ()
     {
         String[] clientslist = server.getClientsList();
+        LOGGER.debug("от сервера получен список: "+ Arrays.toString(clientslist));
         if (clientslist != null)
         {   syncSendMessageToClient (CMD_CLIENTS_LIST);
             syncSendMessageToClient (String.valueOf (clientslist.length));
@@ -230,13 +247,16 @@ public class ClientHandler
         boolean boolSent = false;
         if (lines != null  &&  lines.length > 0  &&  dos != null)
         try
-        {   for (String msg : lines)
-                dos.writeUTF(msg);
+        {
+            for (String msg : lines)
+            {   dos.writeUTF(msg);
+                LOGGER.debug(String.format("клиенту %s отправлено сообщение: %s", nickname, msg));
+            }
             boolSent = true;
         }
         catch (IOException e)
         {   connectionGettingClosed = true;
-            e.printStackTrace();
+            LOGGER.throwing (Level.ERROR, e);//e.printStackTrace();
         }
         return boolSent;
     }// syncSendMessageToClient ()
@@ -244,6 +264,7 @@ public class ClientHandler
 //Метод вызывается сервером.
     public void onServerDown (String servername)
     {
+        LOGGER.debug (String.format("поток «%s» начал выполнять ClientHandler.onServerDown(%s).", Thread.currentThread().toString(), servername));
         syncSendMessageToClient (CMD_CHAT_MSG, servername, SERVER_OFF);
         syncSendMessageToClient (CMD_EXIT);
         server = null; //< чтобы никто не пытался вызывать методы сервера
@@ -252,7 +273,8 @@ public class ClientHandler
 
     public String getClientName ()  {   return nickname;  }
 
-    @Override public String toString ()   {   return "CH:"+ getClientName();   } //< для отладки
+    @Override public String toString ()   {   return "CHandler:"+ getClientName();   } //< для отладки
 
     public void print (String s) {System.out.print(s);}
+    public void println (String s) {System.out.print("\n"+s);}
 }// class ClientHandler
