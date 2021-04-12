@@ -19,10 +19,9 @@ public class CalculatorApp
             int index = arri.length;
             while (--index >= 0 && arri[index] != number) //< ищем «четвёрку»
                 ;
-            if (index >= 0)
-                result = Arrays.copyOfRange (arri, index+1, arri.length);
+            if (index >= 0)  result = Arrays.copyOfRange (arri, index+1, arri.length);
             else
-                throw new RuntimeException();
+            throw new RuntimeException();
         }
         return result;
     }// cutArrayOffByNumber ()
