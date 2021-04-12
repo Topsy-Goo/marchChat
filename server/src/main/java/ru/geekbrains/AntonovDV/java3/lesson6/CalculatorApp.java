@@ -21,6 +21,8 @@ public class CalculatorApp
                 ;
             if (index >= 0)
                 result = Arrays.copyOfRange (arri, index+1, arri.length);
+            else
+                throw new RuntimeException();
         }
         return result;
     }// cutArrayOffByNumber ()
