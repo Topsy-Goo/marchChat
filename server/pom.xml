@@ -3,13 +3,13 @@
 		 xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
 		 xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
 	<parent>
-		<artifactId>march-chat</artifactId>
-		<groupId>ru.geekbrains.march.chat</groupId>
+		<artifactId>march-chat</artifactId><!-- в этом поле скобки использовать нельзя (не будет работать)	-->
+		<groupId>ru.geekbrains.march.chat</groupId><!-- в этом поле скобки использовать нельзя (не будет работать)	-->
 		<version>1.0-SNAPSHOT</version>
 	</parent>
 	<modelVersion>4.0.0</modelVersion>
 
-	<artifactId>server</artifactId>
+	<artifactId>server</artifactId><!-- в этом поле скобки использовать нельзя (не будет работать)	-->
 
 	<properties>
 		<maven.compiler.source>8</maven.compiler.source>
@@ -19,8 +19,8 @@
 	<dependencies>
 
 		<dependency>	<!-- поддержка jdbc SQLite -->
-			<groupId>org.xerial</groupId>
-			<artifactId>sqlite-jdbc</artifactId>
+			<groupId>org.xerial</groupId><!-- в этом поле скобки использовать нельзя (не будет работать)	-->
+			<artifactId>sqlite-jdbc</artifactId><!-- в этом поле скобки использовать нельзя (не будет работать)	-->
 			<version>3.34.0</version>
 		</dependency>
 

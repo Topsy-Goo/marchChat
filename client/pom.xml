@@ -3,13 +3,13 @@
 		 xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
 		 xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
 	<parent>
-		<artifactId>march-chat</artifactId>
-		<groupId>ru.geekbrains.march.chat</groupId>
+		<artifactId>march-chat</artifactId><!-- в этом поле скобки использовать нельзя (не будет работать)	-->
+		<groupId>ru.geekbrains.march.chat</groupId><!-- в этом поле скобки использовать нельзя (не будет работать)	-->
 		<version>1.0-SNAPSHOT</version>
 	</parent>
 	<modelVersion>4.0.0</modelVersion>
 
-	<artifactId>client</artifactId>
+	<artifactId>client</artifactId><!-- в этом поле скобки использовать нельзя (не будет работать)	-->
 
 	<properties>
 		<maven.compiler.source>8</maven.compiler.source>
@@ -19,8 +19,8 @@
 	<dependencies>
 
 		<dependency>	<!-- для связи с server'ом -->
-			<groupId>ru.geekbrains.march.chat</groupId>
-			<artifactId>server</artifactId>
+			<groupId>ru.geekbrains.march.chat</groupId><!-- в этом поле скобки использовать нельзя (не будет работать)	-->
+			<artifactId>server</artifactId><!-- в этом поле скобки использовать нельзя (не будет работать)	-->
 			<version>1.0-SNAPSHOT</version>
 			<scope>compile</scope>
 		</dependency>

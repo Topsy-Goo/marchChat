@@ -4,8 +4,8 @@
 		 xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
 	<modelVersion>4.0.0</modelVersion>
 
-	<groupId>ru.geekbrains.march.chat</groupId>
-	<artifactId>march-chat</artifactId>
+	<groupId>ru.geekbrains.march.chat</groupId><!-- в этом поле скобки использовать нельзя (не будет работать)	-->
+	<artifactId>march-chat</artifactId><!-- в этом поле скобки использовать нельзя (не будет работать)	-->
 	<packaging>pom</packaging>
 	<version>1.0-SNAPSHOT</version>
 	<modules>
@@ -21,21 +21,21 @@
 	<dependencies>
 
 		<dependency>	<!-- поддержка отладчика JUnit v5 -->
-			<groupId>org.junit.jupiter</groupId>
-			<artifactId>junit-jupiter</artifactId>
+			<groupId>org.junit.jupiter</groupId><!-- в этом поле скобки использовать нельзя (не будет работать)	-->
+			<artifactId>junit-jupiter</artifactId><!-- в этом поле скобки использовать нельзя (не будет работать)	-->
 			<version>5.6.2</version>
 			<scope>test</scope> <!-- работаем только в папке src/test/java проекта «march-chat.server» (зелёная папка) -->
 		</dependency>
 
 		<dependency>	<!-- поддержка логгера log4j v2 (aka log4j2) -->
-			<groupId>org.apache.logging.log4j</groupId>
-			<artifactId>log4j-core</artifactId>
+			<groupId>org.apache.logging.log4j</groupId><!-- в этом поле скобки использовать нельзя (не будет работать)	-->
+			<artifactId>log4j-core</artifactId><!-- в этом поле скобки использовать нельзя (не будет работать)	-->
 			<version>2.13.0</version>
 		</dependency>
 
 		<dependency>	<!-- API для логгера -->
-			<groupId>org.apache.logging.log4j</groupId>
-			<artifactId>log4j-api</artifactId>
+			<groupId>org.apache.logging.log4j</groupId><!-- в этом поле скобки использовать нельзя (не будет работать)	-->
+			<artifactId>log4j-api</artifactId><!-- в этом поле скобки использовать нельзя (не будет работать)	-->
 			<version>2.13.0</version>
 		</dependency>
 
