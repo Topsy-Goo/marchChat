@@ -139,6 +139,8 @@ public class TestApp
                                                                      : MAX_ORDER,
                     priority2 = m2.isAnnotationPresent (Order.class) ? m2.getAnnotation(Order.class).order()
                                                                      : MAX_ORDER;
+                priority1 = min(MAX_ORDER, priority1);
+                priority2 = min(MAX_ORDER, priority2);
                 priority1 = max(MIN_ORDER, priority1);
                 priority2 = max(MIN_ORDER, priority2);
                 return priority1 - priority2; // (1 соотв-т макс. приоритету, 10 -- минимальному.)
