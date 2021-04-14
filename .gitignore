@@ -20,3 +20,10 @@
 /logs/authentificator.log
 /logs/clienthandler.log
 /logs/main.log
+/server/target/classes/ru/geekbrains/antonovdv/java3/lesson7/AfterSuite.class
+/server/target/classes/ru/geekbrains/antonovdv/java3/lesson7/BeforeSuite.class
+/server/target/classes/ru/geekbrains/antonovdv/java3/lesson7/Order.class
+/server/target/classes/ru/geekbrains/antonovdv/java3/lesson7/Test.class
+/server/target/classes/ru/geekbrains/antonovdv/java3/lesson7/TestApp$1.class
+/server/target/classes/ru/geekbrains/antonovdv/java3/lesson7/TestApp.class
+/server/target/classes/ru/geekbrains/antonovdv/java3/lesson7/TestClassTmp.class

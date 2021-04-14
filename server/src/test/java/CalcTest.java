@@ -6,7 +6,6 @@ import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 import ru.geekbrains.antonovdv.java3.lesson6.CalculatorApp;
 
-import java.lang.reflect.Constructor;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Stream;
@@ -14,7 +13,6 @@ import java.util.stream.Stream;
 public class CalcTest
 {
     private static CalculatorApp calculator;
-
 
     @BeforeAll static void initAll ()    {   calculator = new CalculatorApp();   }
 
@@ -86,29 +84,6 @@ public class CalcTest
     public void testCheckForOneAndFourPresence (boolean result, int[] arri)
     {
         Assertions.assertEquals(result, calculator.checkForOneAndFourPresence(arri));
-    }
-
-    public void m1()
-    {
-    // Inconvertible types; cannot cast '
-    //      java.lang.Class
-    //          <capture<? extends
-    //                             ru.geekbrains.antonovdv.java3.lesson6.CalculatorApp >>
-    // ' to '
-    //                             ru.geekbrains.antonovdv.java3.lesson6.CalculatorApp
-    // '
-        ;
-        try
-        {
-            CalculatorApp calc = new CalculatorApp();
-            Class c = calc.getClass();
-            Class<CalculatorApp> clas = CalculatorApp.class;
-            Constructor<CalculatorApp> constructor = clas.getConstructor();
-        }
-        catch (NoSuchMethodException e)
-        {
-            e.printStackTrace();
-        }
     }
 
 }// class CalcTest
