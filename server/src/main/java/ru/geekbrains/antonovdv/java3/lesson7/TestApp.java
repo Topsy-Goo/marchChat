@@ -1,11 +1,7 @@
 package ru.geekbrains.antonovdv.java3.lesson7;
 
-import java.lang.annotation.Annotation;
 import java.lang.reflect.*;
-import java.util.Arrays;
-import java.util.Comparator;
-import java.util.PriorityQueue;
-import java.util.function.Predicate;
+import java.util.*;
 
 import static java.lang.Integer.max;
 import static java.lang.Integer.min;

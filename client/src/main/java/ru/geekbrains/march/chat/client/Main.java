@@ -32,9 +32,18 @@ public class Main extends Application
         LOGGER.fatal("---------------------------------------------------------------------------------");
         LOGGER.info("main() : начало");
         launch (args);
-        try  {   Thread.currentThread().wait(7000);    }
-        catch (InterruptedException e) {   LOGGER.error(Level.ERROR, e);   }
-        finally  {LOGGER.info("main() : конец");}
+        //try
+        //{
+        //    Thread.currentThread().wait(7000);
+        //}
+        //catch (InterruptedException e)
+        //{
+        //    LOGGER.error(Level.ERROR, e);
+        //}
+        //finally
+        //{
+        LOGGER.info("main() : конец");
+        //}
     }// main ()
 
 }// class Main

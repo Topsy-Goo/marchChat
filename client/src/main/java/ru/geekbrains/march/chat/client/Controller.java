@@ -2,30 +2,31 @@ package ru.geekbrains.march.chat.client;
 
 import javafx.application.Platform;
 import javafx.event.ActionEvent;
+import javafx.event.EventHandler;
 import javafx.fxml.FXML;
 import javafx.fxml.Initializable;
 import javafx.scene.control.*;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
 import javafx.scene.text.Text;
+import javafx.stage.WindowEvent;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import java.io.DataInputStream;
-import java.io.DataOutputStream;
 import java.io.IOException;
 import java.io.Serializable;
-import java.net.Socket;
 import java.net.URL;
 import java.time.LocalDateTime;
 import java.util.*;
 
+import static javafx.stage.WindowEvent.WINDOW_CLOSE_REQUEST;
 import static ru.geekbrains.march.chat.client.Main.WNDTITLE_APPNAME;
 import static ru.geekbrains.march.chat.server.ServerApp.*;
 
 public class Controller implements Initializable
 {
+    @FXML VBox rootbox;
     @FXML TextArea txtareaMessages;
     @FXML TextField txtfieldUsernameField, txtfieldMessage;
     @FXML PasswordField txtfieldPassword;
@@ -40,7 +41,7 @@ public class Controller implements Initializable
     @FXML Text txtIntroduction;
     @FXML ListView<String> listviewClients;
 
-    private final static String
+    public final static String
             TXT_INTRODUCE_YOURSELF = "Представьтесь:  ",
             TXT_YOU_LOGED_IN_AS = "Вы вошли в чат как: ",
             EMERGENCY_EXIT_FROM_CHAT = "аварийный выход из чата",
@@ -50,7 +51,7 @@ public class Controller implements Initializable
             FORMAT_PRIVATEMSG_FROMYOU = "\n[приватно c %s] от Вас:\n\t%s",
             PROMPT_CONNECTION_ESTABLISHED = "\nСоединение с сервером установлено.",
             PROMPT_TIPS_ON = "\nПодсказки включены.",
-            PROMPT_UNABLE_TO_CONNECT = "Не удалось подключиться.",
+            //PROMPT_UNABLE_TO_CONNECT = "Не удалось подключиться.",
             PROMPT_YOU_ARE_LOGED_OFF = "Вы вышли из чата.",
             PROMPT_CONNECTION_LOST = "\nСоединение разорвано.",
             PROMPT_PRIVATE_MODE_IS_ON = "\n\nВы вошли в приватный режим. Ваши сообщения будут видны только выбранному собеседнику.",
@@ -59,7 +60,7 @@ public class Controller implements Initializable
             PROMPT_CONFIRM_NEW_NICKNAME = "Подтвердите смену вашего имени. Новое имя:\n%s",
             PROMPT_EMPTY_MESSAGE = "Введённое сообщение пустое или содержит только пробельные символы.",
             PROMPT_BAN_NICKNAME_SPECIFIED = "\nУказанное имя пользователя некорректно или уже используется.",
-            PROMPT_UNABLE_TO_SEND_MESSAGE = "не удадось отправить сообщение",
+            //PROMPT_UNABLE_TO_SEND_MESSAGE = "не удадось отправить сообщение",
             PROMPT_ADDRESSEE_NOTSELECTED = "Выберите получателя сообщения в списке участников чата и попробуйте снова.",
             PROMPT_CHANGE_NICKNAME = "\n\nОправьте новое имя как сообщение. Чат-сервер присвоит его Вам, если это" +
                                      " возможно.\n\nДля выхода из режима смены имени нажмите кнопку «Сменить ник» ещё раз.\n",
@@ -82,9 +83,9 @@ public class Controller implements Initializable
             ANSWER_NO = false, ANSWER_YES = !ANSWER_NO,
             TIPS_ON = true, TIPS_OFF = !TIPS_ON
             ;
-    private Socket clientSideSocket;
-    private DataInputStream dis;
-    private DataOutputStream dos;
+    //private Socket clientSideSocket;
+    //private DataInputStream dis;
+    //private DataOutputStream dos;
     private String nickname, login; //< логин нужен для составления имени файла истории чата.
     private Thread
             threadListenServerCommands,
@@ -101,6 +102,7 @@ public class Controller implements Initializable
             tipsMode = TIPS_ON
             ;
     private static final Logger LOGGER = LogManager.getLogger(Controller.class);
+    Network network;
 
     public static class ChatMessage implements Serializable
     {
@@ -127,10 +129,17 @@ public class Controller implements Initializable
     @Override public void initialize (URL location, ResourceBundle resources)
     {
         LOGGER.fatal("initialize():начало ------------------------------------------");
-        //LOGGER.info("initialize():начало");
+
+        network = new Network();
+        network.setOnConnectionFailed ((Object ... objects)-> closeSession((String)objects[0]));
+        network.setOnSendMessageToServer ((Object ... objects)->{
+                            //throw new RuntimeException (Network.PROMPT_UNABLE_TO_SEND_MESSAGE);
+                            ((Exception)objects[0]).printStackTrace(); // ничего не делаем (заготовка для заготовки)
+                        });
         threadJfx = Thread.currentThread();
         updateUserInterface (CANNOT_CHAT);
         txtareaMessages.appendText (WELCOME_TO_MARCHCHAT);
+
         LOGGER.info("initialize():конец");
     }// initialize ()
 
@@ -163,41 +172,17 @@ public class Controller implements Initializable
     }// updateUserInterface ()
 
 // Подключение к серверу.
+    private boolean boolCloseRequest = false;
     private boolean connect ()
     {
-        boolean boolOk = false;
-        if (clientSideSocket == null || clientSideSocket.isClosed())
-        try
-        {   clientSideSocket = new Socket (SERVER_ADDRESS, SERVER_PORT);
-            dis = new DataInputStream (clientSideSocket.getInputStream());
-            dos = new DataOutputStream (clientSideSocket.getOutputStream());
-            boolOk = true;
-            LOGGER.info("connect() подключен");
-        }
-        catch (IOException ioe)
-        {   LOGGER.warn(PROMPT_UNABLE_TO_CONNECT);
-            closeSession ("\n"+PROMPT_UNABLE_TO_CONNECT);
-            LOGGER.throwing (Level.ERROR, ioe);
-        }
-        return boolOk;
+        if (!boolCloseRequest) //< на случай, если юзер выйдет из чата просто закрыв окно приложения.
+            rootbox.getScene().getWindow().setOnCloseRequest((event)->closeSession (EMERGENCY_EXIT_FROM_CHAT));
+        boolCloseRequest = true;
+        return network.connect();
     }// connect ()
 
-//Закрытие сокета и обнуление связанных с ним переменных.
-    private void disconnect ()
-    {
-        LOGGER.info("disconnect() - начало отключения");
-        try
-        {   if (clientSideSocket != null && !clientSideSocket.isClosed())
-                clientSideSocket.close();
-        }
-        catch(IOException e) { LOGGER.throwing (Level.ERROR, e); }
-        finally
-        {   clientSideSocket = null;
-            dis = null;
-            dos = null;
-            LOGGER.info("disconnect() звершился");
-        }
-    }// disconnect ()
+////Закрытие сокета и обнуление связанных с ним переменных.
+    private void disconnect ()  {   network.disconnect();   }// disconnect ()
 
 //--------------------------------------------------- потоки и очередь
 
@@ -280,7 +265,7 @@ public class Controller implements Initializable
         try
         {   while (!chatGettingClosed)
             {
-                msg = dis.readUTF().trim();
+                msg = network.readUTF().trim();
             // работо потоков организована так, что они обрабатывают за цикл по одному сообщению, но на всякий случай
             // доступ к СК помещён после вызова readUTF(), который, при некоторых изменениях кода, может воткнуться в
             // канал во время захвате СК.
@@ -288,30 +273,30 @@ public class Controller implements Initializable
                 {
                     switch (msg)
                     {
-                        case CMD_CHAT_MSG:     queueOffer (CMD_CHAT_MSG, dis.readUTF(), dis.readUTF()); //cmd + name + msg
+                        case CMD_CHAT_MSG:     queueOffer(CMD_CHAT_MSG, network.readUTF(), network.readUTF()); //cmd + name + msg
                             break;
-                        case CMD_PRIVATE_MSG:  queueOffer (CMD_PRIVATE_MSG, dis.readUTF(), dis.readUTF()); //cmd + name + msg
+                        case CMD_PRIVATE_MSG:  queueOffer(CMD_PRIVATE_MSG, network.readUTF(), network.readUTF()); //cmd + name + msg
                             break;
                         case CMD_CLIENTS_LIST_CHANGED:  queueOffer (CMD_CLIENTS_LIST_CHANGED);
                             break;
-                        case CMD_LOGIN:    queueOffer (CMD_LOGIN, dis.readUTF()); //cmd + nickname
+                        case CMD_LOGIN:    queueOffer(CMD_LOGIN, network.readUTF()); //cmd + nickname
                             break;
-                        case CMD_BADLOGIN: queueOffer (CMD_BADLOGIN, dis.readUTF()); //cmd + prompt
+                        case CMD_BADLOGIN: queueOffer(CMD_BADLOGIN, network.readUTF()); //cmd + prompt
                             break;
-                        case CMD_CHANGE_NICKNAME:  queueOffer (CMD_CHANGE_NICKNAME, dis.readUTF()); //cmd + nickname
+                        case CMD_CHANGE_NICKNAME:  queueOffer(CMD_CHANGE_NICKNAME, network.readUTF()); //cmd + nickname
                             break;
-                        case CMD_BADNICKNAME:      queueOffer (CMD_BADNICKNAME, dis.readUTF()); //cmd + prompt
+                        case CMD_BADNICKNAME:      queueOffer(CMD_BADNICKNAME, network.readUTF()); //cmd + prompt
                             break;
                         case CMD_CONNECTED: queueOffer (CMD_CONNECTED);
                             break;
                         case CMD_EXIT:      queueOffer (CMD_EXIT);
                             break;
                         case CMD_CLIENTS_LIST:
-                            int i=0, size = 2+ Integer.parseInt (msg = dis.readUTF()); //количество строк
+                            int i=0, size = 2+ Integer.parseInt(msg = network.readUTF()); //количество строк
                             String[] as = new String[size];
                             as[i++] = CMD_CLIENTS_LIST; // cmd
                             as[i++] = msg;              // count
-                            while (i < size)  as[i++] = dis.readUTF(); //строки
+                            while (i < size)  as[i++] = network.readUTF(); //строки
                             queueOffer (as);
                             break;
                         default:
@@ -382,7 +367,7 @@ public class Controller implements Initializable
                 {
                     case CMD_CHAT_MSG:   boolOk = onCmdChatMsg();
                         break;
-                    case CMD_CLIENTS_LIST_CHANGED:  boolOk = sendMessageToServer (CMD_CLIENTS_LIST);
+                    case CMD_CLIENTS_LIST_CHANGED:  boolOk = network.sendMessageToServer (CMD_CLIENTS_LIST);
                         break;
                     case CMD_CLIENTS_LIST:  boolOk = onCmdClientsList();
                         break;
@@ -417,7 +402,7 @@ public class Controller implements Initializable
     {
         String name = inputqueue.poll(),
                message = inputqueue.poll();
-        if (!validateStrings (message))
+        if (!validateStrings (name, message))
             throw new RuntimeException("ERROR @ onCmdChatMsg() : queue polling error.");
 
         ChatMessage cm = new ChatMessage (name, message, name.equals(nickname), PUBLIC_MSG);
@@ -451,7 +436,7 @@ public class Controller implements Initializable
         readChatStorage();    //< Считываем историю чата из файла
         updateUserInterface (CAN_CHAT);
         LOGGER.info("onCmdLogIn()/nickname: "+ nickname);
-        return sendMessageToServer (CMD_LOGIN_READY); //< сообщаем о готовности войти в чат (теперь мы участники чата)
+        return network.sendMessageToServer (CMD_LOGIN_READY); //< сообщаем о готовности войти в чат (теперь мы участники чата)
     }// onCmdLogIn ()
 
 // Обработчик команды CMD_CHANGE_NICKNAME.
@@ -585,15 +570,15 @@ public class Controller implements Initializable
             LOGGER.info(String.format("onactionLogin()/ login: %s; password: %s", login, password));
             inputqueue = new LinkedList<>(); //< других потоков нет (можно не синхронизировать доступ)
 
-            threadListenServerCommands = new Thread(() -> runTreadInputStream());
+            threadListenServerCommands = new Thread(this::runTreadInputStream);
             threadListenServerCommands.start();
-            threadCommandDispatcher = new Thread(() -> messageDispatcher());
+            threadCommandDispatcher = new Thread(this::messageDispatcher);
             threadCommandDispatcher.start(); //< входим в Main Loop.
 
             this.login = login; //< запоминаем логин, под которым регистрируемся (для имени файла)
-            sendMessageToServer (CMD_LOGIN, this.login, password);
+            network.sendMessageToServer (CMD_LOGIN, this.login, password);
         }
-        else txtareaMessages.setText (PROMPT_UNABLE_TO_CONNECT);
+        else txtareaMessages.setText (Network.PROMPT_UNABLE_TO_CONNECT);
         LOGGER.info("onactionLogin() конец");
     }// onactionLogin ()
 
@@ -618,7 +603,7 @@ public class Controller implements Initializable
         else if (changeNicknameMode == MODE_CHANGE_NICKNAME) //< включен режим смены имени
         {
             if (alertConfirmationYesNo (ALERT_HEADER_RENAMING, String.format(PROMPT_CONFIRM_NEW_NICKNAME, message)) == ANSWER_YES)
-                boolSent = sendMessageToServer(CMD_CHANGE_NICKNAME, message);
+                boolSent = network.sendMessageToServer(CMD_CHANGE_NICKNAME, message);
         }
         else if (privateMode == MODE_PRIVATE) // исходящие приватные сообщения
         {
@@ -627,14 +612,14 @@ public class Controller implements Initializable
             if (name == null || name.isEmpty())
                 alertWarning(ALERT_HEADER_ADDRESSEE, PROMPT_ADDRESSEE_NOTSELECTED); //< если получатель не выбран
             else
-            if (boolSent = sendMessageToServer(CMD_PRIVATE_MSG, name, message))
+            if (boolSent = network.sendMessageToServer(CMD_PRIVATE_MSG, name, message))
             {
                 ChatMessage cm = new ChatMessage (name, message, OUTPUT_MSG, PRIVATE_MSG);
                 if (stenographer != null) stenographer.append (cm);
                 txtareaMessages.appendText (cm.toString());
             }
         }
-        else boolSent = sendMessageToServer(CMD_CHAT_MSG, message); // обычный режим (публичные сообщения)
+        else boolSent = network.sendMessageToServer(CMD_CHAT_MSG, message); // обычный режим (публичные сообщения)
 
         if (boolSent)
         {   txtfieldMessage.clear();
@@ -672,29 +657,29 @@ public class Controller implements Initializable
 
 //------------------------- вспомогательные методы ----------------------------
 
-//(Вспомогательный метод.) Шлём на сервер строки отдельными сообщениями.
-    private boolean sendMessageToServer (String ... lines)
-    {
-        boolean boolSent = false;
-        StringBuilder sb;
-        if (lines != null  &&  lines.length > 0  &&  dos != null)
-        try
-        {   if (DEBUG) sb = new StringBuilder("sendMessageToServer() call on :\n\t«");
-            for (String msg : lines)
-            {
-                dos.writeUTF(msg);
-                if (DEBUG) sb.append(msg).append(" | ");
-            }
-            if (DEBUG) LOGGER.debug(sb.append('»').toString());
-            boolSent = true;
-        }
-        catch (IOException e)
-        {   LOGGER.info ("ERROR @ sendMessageToServer() - "+ PROMPT_UNABLE_TO_SEND_MESSAGE);
-            LOGGER.throwing (Level.ERROR, e);
-        }
-        return boolSent;
-    }// sendMessageToServer ()
-
+////(Вспомогательный метод.) Шлём на сервер строки отдельными сообщениями.
+//    private boolean sendMessageToServer (String ... lines)
+//    {
+//        boolean boolSent = false;
+//        StringBuilder sb;
+//        if (lines != null  &&  lines.length > 0  &&  dos != null)
+//        try
+//        {   if (DEBUG) sb = new StringBuilder("sendMessageToServer() call on :\n\t«");
+//            for (String msg : lines)
+//            {
+//                dos.writeUTF(msg);
+//                if (DEBUG) sb.append(msg).append(" | ");
+//            }
+//            if (DEBUG) LOGGER.debug(sb.append('»').toString());
+//            boolSent = true;
+//        }
+//        catch (IOException e)
+//        {   LOGGER.info ("ERROR @ sendMessageToServer() - "+ PROMPT_UNABLE_TO_SEND_MESSAGE);
+//            LOGGER.throwing (Level.ERROR, e);
+//        }
+//        return boolSent;
+//    }// sendMessageToServer ()
+//
 // Стандартное окно сообщения с кнопкой Close.
     public static void alertWarning (String header, String msg)
     {
@@ -764,9 +749,9 @@ public class Controller implements Initializable
     - вызов onCmdExit для изменения некоторых переменных и остановки доп.потоков;
     - вызов disconnect().
 */      LOGGER.debug(String.format("closeSession() вызван с параметром: %s", prompt));
-        sendMessageToServer (CMD_EXIT);   //< выполняется при необходимости
+        network.sendMessageToServer (CMD_EXIT);   //< выполняется при необходимости
         onCmdExit (prompt); //< модно не синхронизировать, т.к. в этот блок есть доступ только у threadJfx
-        disconnect();
+        network.disconnect();
         LOGGER.debug("closeSession() завершился");
     }// closeSession ()
 

@@ -14,6 +14,7 @@
 <?import javafx.scene.control.ToggleButton?>
 <?import javafx.scene.control.PasswordField?>
 <VBox fx:controller="ru.geekbrains.march.chat.client.Controller"
+	  fx:id="rootbox"
 	  xmlns:fx="http://javafx.com/fxml"
 	  alignment="center">
 
