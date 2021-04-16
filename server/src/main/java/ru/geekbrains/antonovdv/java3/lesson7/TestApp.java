@@ -31,11 +31,15 @@ public class TestApp
     аннотациями @BeforeSuite и @AfterSuite должны присутствовать в единственном экземпляре. Если это не так –
     необходимо бросить RuntimeException при запуске «тестирования».
 */
-    public static void start (Class<?> testClass)
+    private static final Object sync = new Object();
+
+    public static void start (Class<?> testClass)//throws NoSuchMethodException, IllegalAccessException, InvocationTargetException, InstantiationException
     {
         if (testClass == null || testClass.isInterface() ||
             testClass.isAnnotation() || testClass.isArray() || testClass.isPrimitive())
           throw new IllegalArgumentException();
+
+        //testClass.getDeclaredConstructor().newInstance();
 
     //Сздаём экземпляр класса testClass, чтобы иметь возможность запускать его нестатические методы:
         Object instance = null;
@@ -101,12 +105,15 @@ public class TestApp
     //Выполняем все методы, признанные годными для участия в тесте. (Не проверяем количество элементов
     // в methodsToTest, оставляя пользователю решать, как организовывать класс-тест.)
 
-            invokeMethod (methodBefore, instance);
+            synchronized (sync) //< чтобы System.out и System.err не мешали свой текст с выводом результатов теста
+            {
+                invokeMethod (methodBefore, instance);
 
-            while (!methodsToTest.isEmpty())
-                invokeMethod (methodsToTest.poll(), instance);
+                while (!methodsToTest.isEmpty())
+                    invokeMethod (methodsToTest.poll(), instance);
 
-            invokeMethod (methodAfter, instance);
+                invokeMethod (methodAfter, instance);
+            }
         }
     }// start ()
 
@@ -130,6 +137,8 @@ public class TestApp
     }// invokeMethod ()
 
 //Создание анонимного класса-компаратора вынесено в отдельный метод.
+    private static final String PROMPT_PRORITY_ERROR =
+                    "ВНИМАНИЕ: приоритет метода : %s\n\tизменён на ближайшее значение из интервала [%d; %d]";
     protected static Comparator<Method> comparatorForMethodPriority ()
     {
         return new Comparator<Method>() {
@@ -140,10 +149,18 @@ public class TestApp
                                                                      : MAX_ORDER,
                     priority2 = m2.isAnnotationPresent (Order.class) ? m2.getAnnotation(Order.class).order()
                                                                      : MAX_ORDER;
-                priority1 = min(MAX_ORDER, priority1);
-                priority2 = min(MAX_ORDER, priority2);
-                priority1 = max(MIN_ORDER, priority1);
-                priority2 = max(MIN_ORDER, priority2);
+            //Следующее изменение сделано по результатам разбора ДЗ (пользователь должен быть информирован
+            // о том, что приоритеты будут не такие, какие он назначил):
+                if (priority1 > MAX_ORDER || priority1 < MIN_ORDER)
+                {   priority1 = max(MIN_ORDER, priority1);
+                    priority1 = min(MAX_ORDER, priority1);
+                    println (String.format (PROMPT_PRORITY_ERROR, m1, MIN_ORDER, MAX_ORDER));
+                }
+                if (priority2 > MAX_ORDER || priority2 < MIN_ORDER)
+                {   priority2 = max(MIN_ORDER, priority2);
+                    priority2 = min(MAX_ORDER, priority2);
+                    println (String.format (PROMPT_PRORITY_ERROR, m2, MIN_ORDER, MAX_ORDER));
+                }
                 return priority1 - priority2; // (1 соотв-т макс. приоритету, 10 -- минимальному.)
             }
         };
