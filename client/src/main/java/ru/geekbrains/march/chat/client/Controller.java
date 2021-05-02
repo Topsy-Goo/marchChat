@@ -13,6 +13,7 @@ import javafx.stage.WindowEvent;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import ru.geekbrains.march.chat.server.Server;
 
 import java.io.IOException;
 import java.io.Serializable;
@@ -721,22 +722,6 @@ public class Controller implements Initializable
 
     @Override public String toString() { return "Controller:"+ nickname; }
 
-//(Вспомогательная.) Проверяет строку на пригодность для использования в качестве логина, пароля, ника и т.п.
-    public static boolean validateStrings (String ... lines)
-    {
-        boolean result = lines != null;
-        if (result)
-        for (String ln : lines)
-        if (ln == null || ln.trim().isEmpty())
-        {
-            result = false;
-            LOGGER.error(String.format("validateStrings() обнаружил: %s", ln));
-            break;
-        }
-        else LOGGER.info(String.format("в validateStrings() передано %s", ln));
-        return result;
-    }// validateString ()
-
 //Выполняем действия, полагающиеся при выходе из чата. Вызывается потоком threadJfx из:
 //      connect()   - в блоке catch(){}
 //      messageDispatcher() - в блоке finally при пом. Platform.runLater(->)
@@ -755,17 +740,20 @@ public class Controller implements Initializable
         LOGGER.debug("closeSession() завершился");
     }// closeSession ()
 
+//(Вспомогательная.) Проверяет строку на пригодность для использования в качестве логина, пароля, ника и т.п.
+    public static boolean validateStrings (String ... lines)
+    {
+        boolean result = Server.validateStrings (lines);
+        if (!result)
+            LOGGER.error("validateStrings() нашёл ошибку в следующих строках:\n"+ Arrays.asList(lines).toString());
+        return result;
+    }// validateString ()
+
     public void print (String s) {System.out.print(s);}
     public void println (String s) {System.out.print("\n"+s);}
 
 }// class Controller
 
-/*  TODO * сейчас при отправке личного сообщения оно сразу записывается в историю. Для таких исх.сообщений можно
-            сделать подтверждение от сервера, по получении которого сообщение и будет записываться в историю.
-
-    TODO : Преподаватель «анонсировал» короткое чтение истории чата из файла (применительно к его версии чата):
+/*  TODO : Преподаватель «анонсировал» короткое чтение истории чата из файла (применительно к его версии чата):
             Files.lines(Paths.get("log.txt")).collect(Collectors.joining("\n"));
-
-    TODO * у нас получается захватить чужой ник, даже если хозяин вошёл в чат (если хозяин в чате, то ещё и
-            список отображается неверно).
 */

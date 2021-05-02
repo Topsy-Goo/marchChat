@@ -46,6 +46,7 @@ public class JdbcAuthentificationProvider implements Authentificator
             throw new RuntimeException("\nCannot create object JdbcAuthentificationProvider.");
         }
         finally {LOGGER.info("JdbcAuthentificationProvider():конец");}
+
     }// JdbcAuthentificationProvider ()
 
 
@@ -71,7 +72,7 @@ public class JdbcAuthentificationProvider implements Authentificator
     @Override public String authenticate (String login, String password)
     {
         String nickName = null;
-        if (validateStrings (login, password))
+        if (Server.validateStrings (login, password))
         {
             try (ResultSet rs = statement.executeQuery (String.format (FRMT_STMENT_SEL_1BY2,
                                         FLD_NICK, TABLE_NAME, FLD_LOGIN, login, FLD_PASS, password));)
@@ -90,30 +91,24 @@ public class JdbcAuthentificationProvider implements Authentificator
 // В БД изменяем поле nickname == prevName на newName. (У поля nickname есть атрибут UNIQUE.)
     @Override public String rename (String prevName, String newName)
     {
-        String result = null;   //< индикатор неустранимой ошибки
-        if (validateStrings (prevName, newName))
+        String result = null;   //< индикатор ошибки
+        if (Server.validateStrings (prevName, newName))
         {
             LOGGER.debug(String.format("переименование %s >> %s", prevName, newName));
             try
-            {   psUpdate1By1.setString (1, newName);
+            {
+            //Вносим имя newName в БД вместо prevName (БД настроена так, что если такое имя уже используется, то
+            // она не вернёт ошибку, но и изменять ничего не станет):
+                psUpdate1By1.setString (1, newName);
                 psUpdate1By1.setString (2, prevName);
-                psUpdate1By1.executeUpdate();
-        /* Теперь проверяем, сделана ли в БД соотв. запись. (Лучше делать так -- пытаться менять и
-           проверять результат, -- чем отдельным запросом выяснять, занят ник или нет, т.к., теоретически,
-           между операциями запроса и смены может произойти запрос от другого пользователя на тот же самый
-           ник или смена ника, и т.о. мы будем вынуждены проводить доп.проверки или синхронизацию. Здесь же
-           всё происходит в одном методе и, соотв-но, в одном запросе.)    */
-                try (ResultSet rs = statement.executeQuery (
-                         String.format (FRMT_STMENT_SEL_1BY1, FLD_NICK, TABLE_NAME, FLD_NICK, newName));)
-                {   if (rs.next())
-                         result = rs.getString (FLD_NICK); //или rs.getString (№);
-                    else result = ""; //< индикатор того, что запись не состоялась
-                    LOGGER.debug("ответ базы : "+ result);
-                }
-                catch (SQLException throwables) { LOGGER.throwing(Level.ERROR, throwables);/*.printStackTrace();*/ }
+                if (psUpdate1By1.executeUpdate() > 0)
+            // Теперь проверяем, сделана ли в БД соотв. запись. (Соотв. графа в БД настроена на уникальные значения.)
+            //  Кроме того, этот метод должен вызываться из синхронизированного контекста.
+                     result = isNicknamePresent(newName);
+                else result = "";
             }
-            catch (SQLException throwables)
-            {   LOGGER.throwing(Level.ERROR, throwables);//throwables.printStackTrace();
+            catch (SQLException e)
+            {   LOGGER.throwing(Level.ERROR, e);//throwables.printStackTrace();
                 //throw new RuntimeException();
             }
         } else LOGGER.error("переименование : битые параметры.");
@@ -121,11 +116,28 @@ public class JdbcAuthentificationProvider implements Authentificator
     }// rename ()
 
 
+//(Вспомогательная.) Проверяет наличие ника в базе.
+    String isNicknamePresent (String nickname)
+    {
+        String result = null;
+        if (Server.validateStrings (nickname))
+            try (ResultSet rs = statement.executeQuery (String.format (FRMT_STMENT_SEL_1BY1,
+                                    FLD_NICK, TABLE_NAME, FLD_NICK, nickname));)
+            {   if (rs.next())
+                     result = rs.getString (FLD_NICK); //или rs.getString (№);
+                else result = ""; //< индикатор того, что чтение не состоялось
+                LOGGER.debug("ответ базы : "+ result);
+            }
+            catch (SQLException e) { LOGGER.throwing(Level.ERROR, e);/*.printStackTrace();*/ }
+        return result;
+    }// isNicknamePresent ()
+
+
 // Добавляем данные пользователя в БД. (Сейчас он не используется.)
     @Override public boolean add (String login, String password, String nickname)
     {
         boolean boolOk = false;
-        if (validateStrings (login, password, nickname))
+        if (Server.validateStrings (login, password, nickname))
         {
             try
             {   psInsert3Fld.setString(1, login);
@@ -148,7 +160,7 @@ public class JdbcAuthentificationProvider implements Authentificator
 // Удаляем пользователя из БД по нику. (Этот метод сейчас не используется.)
     @Override public void remove (String login)
     {
-        if (validateStrings (login))
+        if (Server.validateStrings (login))
         try
         {   psDeleteBy1.setString(1, login);
             psDeleteBy1.executeUpdate();
@@ -175,15 +187,29 @@ public class JdbcAuthentificationProvider implements Authentificator
     }// dropDbTable ()
 
 
-//(Вспомогательная.) Проверяет строку на пригодность для использования в качестве логина, пароля, ника.
-    public static boolean validateStrings (String ... lines)
+// Создаём SQL-таблицу, если она ещё не создана.
+    static final String FORMAT_CREATE_TABLE_IFEXISTS =
+            "CREATE TABLE IF NOT EXISTS [%s] (" +
+            "%s STRING NOT NULL UNIQUE ON CONFLICT IGNORE PRIMARY KEY, " +
+            "%s STRING NOT NULL, " +
+            "%s STRING NOT NULL UNIQUE ON CONFLICT IGNORE);"
+            ;
+    private int createDbTable (Connection connection)
     {
-        if (lines != null)
-        for (String s : lines)
-            if (s == null || s.trim().isEmpty())
-                return false;
-        return true;
-    }// validateString ()
+        int result = -1;
+        try (Statement stnt = connection.createStatement())
+        {
+            result = stnt.executeUpdate (String.format (FORMAT_CREATE_TABLE_IFEXISTS,
+                                TABLE_NAME, FLD_LOGIN, FLD_PASS, FLD_NICK));
+        }
+        catch (SQLException throwables)
+        {   throwables.printStackTrace();
+            throw new RuntimeException();
+        }
+        return result;
+    }// createDbTable ()
+
 
     public void print (String s) {System.out.print(s);}
+
 }// class JdbcAuthentificationProvider

@@ -15,6 +15,7 @@ public class DbConnection
     private Connection connection;
     private Statement statement;
 
+
     public DbConnection ()
     {
         try

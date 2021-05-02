@@ -12,7 +12,9 @@ public class TestApp
 {
     public static void main (String[] args)
     {
-        start (TestClassTmp.class);
+        //%[argument_index$][flags][width][.precision]conversion
+        Byte b = 18;  println (String.format("%8s", 100 ));
+        //start (TestClassTmp.class);
     }// main()
 
 /*  Условие ДЗ:

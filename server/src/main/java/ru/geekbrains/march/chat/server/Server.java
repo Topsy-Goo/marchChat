@@ -31,7 +31,7 @@ public class Server
     private final String SERVERNAME;
 
     private final int THREADS_POOL = 4;
-    private Map<String, ClientHandler> map;
+    private Map<String, ClientHandler> map; //< список клиентов онлайн
     private String[] publicCliendsList;
     private boolean serverGettingOff;
     //private ExecutorService executorservice;
@@ -196,10 +196,18 @@ public class Server
     public synchronized String syncChangeNickname (ClientHandler client, String newnickname)
     {
         String result = null;
-        if (client != null && authentificator != null)
+        if (client != null && authentificator != null && map != null)
         {
             String prevnickname = client.getClientName();
-            synchronized (syncAuth)  {   result = authentificator.rename (prevnickname, newnickname);  }
+            synchronized (syncAuth)
+            {
+/*              if (!validateStrings (newnickname)) //< первый уровень проверки валидности нового имени (null? empty?)
+                    result = null;
+                else if (map.containsKey (newnickname)) //< второй уровень … (сработает только если юзер с таким имененм онлайн)
+                    result = "";
+                else    /**/
+                    result = authentificator.rename (prevnickname, newnickname);
+            }
 
             LOGGER.info(String.format("на запрос переименовать клиента из «%s» в «%s» БД ответила: %s",
                                          prevnickname, newnickname, result));
@@ -317,6 +325,19 @@ public class Server
 
 //Предоставляем публичный список участников чата всем желающим.
     public String[] getClientsList ()    {   return publicCliendsList;   }// getClientsList ()
+
+//(Вспомогательная.) Проверяет строку на пригодность для использования в качестве логина, пароля, ника.
+    public static boolean validateStrings (String ... lines)
+    {
+        boolean result = lines != null;
+        if (result)
+        for (String s : lines)
+            if (s == null || s.trim().isEmpty())
+            {
+                result = false;     break;
+            }
+        return result;
+    }// validateString ()
 
     public void print (String s) {System.out.print(s);}
     public void println (String s) {System.out.print("\n"+s);}
