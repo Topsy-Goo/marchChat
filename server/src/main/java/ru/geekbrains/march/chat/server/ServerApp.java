@@ -9,11 +9,6 @@ public class ServerApp
     private static final Logger LOGGER = LogManager.getLogger (ServerApp.class);
     public static final boolean DEBUG = true; //< для отладки
     public static final String
-            CLASS_NAME = "org.sqlite.JDBC",
-                        // Для H2 Database - org.h2.Driver
-                        // Для MySQL - com.mysql.jdbc.Driver
-            TABLE_NAME = "marchchat users",
-            DATABASE_URL = "jdbc:sqlite:marchchat.db",  // [protocol]:[subprotocol]:[name]
             CMD_CHAT_MSG = "/chat",
             CMD_PRIVATE_MSG = "/w",
             CMD_EXIT = "/exit",
@@ -27,7 +22,28 @@ public class ServerApp
             CMD_CLIENTS_LIST = "/clients_list",
             CMD_CLIENTS_LIST_CHANGED = "/clients_list_changed",
             APP_IS_OFF = "выход из приложения",
-            SERVER_ADDRESS = "localhost"
+            SERVER_ADDRESS = "localhost",
+            TABLE_NAME = "marchchat users",
+
+    //настройки для работы с разными типами БД
+
+        //указание зависимостей
+            //(Выполняется в pom.xml (суб)проекта.)
+
+        //тип БД:
+            //SQLITE = "SQLite",
+            //MYSQL = "MySQL",
+            //DATABASE_TYPE = MYSQL,
+            //DATABASE_TYPE = SQLITE,
+
+        //подключение драйвера типа БД:
+            //CLASS_NAME = "com.mysql.jdbc.Driver", < Для MySQL: класс Driver в папке External Libraries\com.mysql.jdbc
+            CLASS_NAME = "org.sqlite.JDBC", //< Для SQLite: класс JDBC в папке External Libraries\org.sqlite
+            //CLASS_NAME = "org.h2.Driver",  < Для H2 Database: класс Driver в папке External Libraries\org.h2
+
+        //указание пути к БД:
+            //DATABASE_URL = "jdbc:mysql://localhost/marchchat?user=root&password=********************"
+            DATABASE_URL = "jdbc:sqlite:marchchat.db"  //< [protocol]:[subprotocol]:[name]
             ;
     public static final int SERVER_PORT = 8189;
 

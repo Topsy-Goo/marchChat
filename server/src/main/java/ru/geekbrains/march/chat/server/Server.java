@@ -53,7 +53,7 @@ public class Server
         SERVERNAME = SERVERNAME_BASE_ + serverNameCounter ++;
         serverGettingOff = false;
         map = new HashMap<>();
-        syncUpdatePublicClientsList();
+        syncUpdatePublicClientsList();  //< создаём publicCliendsList
 
         //несколько серверов (запущенные на одной машине) могут использовать БД парллельно
         LOGGER.info(methodname+"подключение к БД");

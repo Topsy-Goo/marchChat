@@ -6,7 +6,7 @@ import org.apache.logging.log4j.Logger;
 
 import java.sql.*;
 
-import static ru.geekbrains.march.chat.server.ServerApp.*;
+import static ru.geekbrains.march.chat.server.ServerApp.TABLE_NAME;
 
 public class JdbcAuthentificationProvider implements Authentificator
 {
@@ -32,13 +32,15 @@ public class JdbcAuthentificationProvider implements Authentificator
         dbConnection = new DbConnection();
         statement = dbConnection.getStatement();
         Connection connection = dbConnection.getConnection();
+
+        //createDbTable (connection); < этот вызов помогает проверить, поддерживается ли используемый здесь синтаксис
         try
         {   psUpdate1By1 = connection.prepareStatement(
-                        String.format (FRMT_PREPSTMENT_UPD_SET1BY1, TABLE_NAME, FLD_NICK, FLD_NICK));
+                        String.format(FRMT_PREPSTMENT_UPD_SET1BY1, TABLE_NAME, FLD_NICK, FLD_NICK));
             psInsert3Fld = connection.prepareStatement(
-                        String.format (FRMT_PREPSTMENT_INS_3FLD, TABLE_NAME, FLD_LOGIN, FLD_PASS, FLD_NICK));
+                        String.format(FRMT_PREPSTMENT_INS_3FLD, TABLE_NAME, FLD_LOGIN, FLD_PASS, FLD_NICK));
             psDeleteBy1 = connection.prepareStatement(
-                        String.format (FRMT_PREPSTMENT_DEL_BY1, TABLE_NAME, FLD_LOGIN));
+                        String.format(FRMT_PREPSTMENT_DEL_BY1, TABLE_NAME, FLD_LOGIN));
         }
         catch (SQLException sqle)
         {   sqle.printStackTrace ();
@@ -74,8 +76,8 @@ public class JdbcAuthentificationProvider implements Authentificator
         String nickName = null;
         if (Server.validateStrings (login, password))
         {
-            try (ResultSet rs = statement.executeQuery (String.format (FRMT_STMENT_SEL_1BY2,
-                                        FLD_NICK, TABLE_NAME, FLD_LOGIN, login, FLD_PASS, password));)
+            try (ResultSet rs = statement.executeQuery(String.format(FRMT_STMENT_SEL_1BY2,
+                                                                     FLD_NICK, TABLE_NAME, FLD_LOGIN, login, FLD_PASS, password));)
             {   if (rs.next())
                     nickName = rs.getString (FLD_NICK);
             }
@@ -121,8 +123,8 @@ public class JdbcAuthentificationProvider implements Authentificator
     {
         String result = null;
         if (Server.validateStrings (nickname))
-            try (ResultSet rs = statement.executeQuery (String.format (FRMT_STMENT_SEL_1BY1,
-                                    FLD_NICK, TABLE_NAME, FLD_NICK, nickname));)
+            try (ResultSet rs = statement.executeQuery(String.format(FRMT_STMENT_SEL_1BY1,
+                                                                     FLD_NICK, TABLE_NAME, FLD_NICK, nickname));)
             {   if (rs.next())
                      result = rs.getString (FLD_NICK); //или rs.getString (№);
                 else result = ""; //< индикатор того, что чтение не состоялось
@@ -184,23 +186,32 @@ public class JdbcAuthentificationProvider implements Authentificator
             throwables.printStackTrace();
             throw new RuntimeException();
         }
-    }// dropDbTable ()
-
+    }// dropDbTable ()  */
 
 // Создаём SQL-таблицу, если она ещё не создана.
-    static final String FORMAT_CREATE_TABLE_IFEXISTS =
+    static final String FORMAT_CREATE_TABLE_IFEXISTS_SQLITE =
             "CREATE TABLE IF NOT EXISTS [%s] (" +
             "%s STRING NOT NULL UNIQUE ON CONFLICT IGNORE PRIMARY KEY, " +
             "%s STRING NOT NULL, " +
             "%s STRING NOT NULL UNIQUE ON CONFLICT IGNORE);"
+            ;
+//  CREATE SCHEMA `marchchat`;
+    static final String FORMAT_CREATE_TABLE_IFEXISTS_MYSQL =    //< попробовали, выходит ли на связь MySQL: выходит. ура.
+            "CREATE TABLE `marchchat`.`marchchat users` (" +
+            "`login` VARCHAR(45) NOT NULL," +
+            "`password` VARCHAR(45) NOT NULL," +
+            "`nickname` VARCHAR(45) NOT NULL," +
+            "PRIMARY KEY (`login`)," +
+            "UNIQUE INDEX `nickname_UNIQUE` (`nickname` ASC) VISIBLE," +
+            "UNIQUE INDEX `login_UNIQUE` (`login` ASC) VISIBLE);"
             ;
     private int createDbTable (Connection connection)
     {
         int result = -1;
         try (Statement stnt = connection.createStatement())
         {
-            result = stnt.executeUpdate (String.format (FORMAT_CREATE_TABLE_IFEXISTS,
-                                TABLE_NAME, FLD_LOGIN, FLD_PASS, FLD_NICK));
+            result = stnt.executeUpdate (String.format(FORMAT_CREATE_TABLE_IFEXISTS_SQLITE,
+                                            TABLE_NAME, FLD_LOGIN, FLD_PASS, FLD_NICK, FLD_LOGIN));
         }
         catch (SQLException throwables)
         {   throwables.printStackTrace();
