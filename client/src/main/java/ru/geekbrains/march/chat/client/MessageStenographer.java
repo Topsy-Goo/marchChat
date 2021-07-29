@@ -43,7 +43,7 @@ public class MessageStenographer<T extends Serializable> implements Stenographer
             }
             catch (IOException ioe)
             {   ioe.printStackTrace();
-                System.out.println("ERROR @ storeTextUTF(): unable write to file.");
+                print("\nERROR @ storeTextUTF(): unable write to file.");
             }
             finally
             {   filename = null;

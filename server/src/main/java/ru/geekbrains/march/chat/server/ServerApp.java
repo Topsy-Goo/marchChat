@@ -50,7 +50,6 @@ public class ServerApp
     public static void main (String[] args)
     {
         LOGGER.fatal("---------------------------------------------------------------------------------");
-        //new WaitNotifyApp().treadWaitNotifyTest();
         new Server (SERVER_PORT);
         LOGGER.info(APP_IS_OFF);
     }// main ()

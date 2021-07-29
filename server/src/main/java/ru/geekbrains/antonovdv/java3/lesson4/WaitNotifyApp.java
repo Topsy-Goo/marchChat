@@ -6,9 +6,10 @@ public class WaitNotifyApp
     private char letter = 'A';
 
     public void treadWaitNotifyTest ()
-    {   new Thread(()->runThreadA()).start();
-        new Thread(()->runThreadB()).start();
-        new Thread(()->runThreadC()).start();
+    {   new Thread(this::runThreadA).start();
+        new Thread(this::runThreadB).start();
+        new Thread(this::runThreadC).start();
+        new Thread(this::runThreadDot).start();
     }
 
     void runThreadA ()
@@ -47,6 +48,21 @@ public class WaitNotifyApp
             {   for (int i=0; i<5; i++)
                 {
                     while (letter != 'C')
+                        o.wait();
+                    System.out.print (letter);
+                    letter = '.';
+                    o.notifyAll();
+                }
+            } catch (InterruptedException e)  {  e.printStackTrace();  }
+        }
+    }// runThreadC ()
+
+    void runThreadDot ()
+    {   synchronized (o)
+        {   try
+            {   for (int i=0; i<5; i++)
+                {
+                    while (letter != '.')
                         o.wait();
                     System.out.print (letter);
                     letter = 'A';

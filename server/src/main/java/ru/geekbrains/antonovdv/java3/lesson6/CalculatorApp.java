@@ -19,19 +19,15 @@ public class CalculatorApp
 */
     public int[] cutArrayOffByNumber (int[] arri, int number)
     {
-        int[] result = {};
-        if (arri != null && arri.length > 0)
+        int index;
+        if (arri != null && (index = arri.length) > 1)
         {
-            int index = arri.length;
-            while (--index >= 0 && arri[index] != number) ; //< ищем «четвёрку»
-
-            if (index >= 0)   result = Arrays.copyOfRange (arri, index+1, arri.length);
-            else
-            throw new RuntimeException(); //< эту строку дописанли прямо в уд.репо.
+            while (--index >= 0 && arri[index] != number) //< ищем «четвёрку»
+                ;
+            if (index >= 0)
+                return Arrays.copyOfRange (arri, index+1, arri.length);
         }
-        else
         throw new RuntimeException(); //< эту строку дописанли прямо в уд.репо.
-        return result;
     }// cutArrayOffByNumber ()
 
 
@@ -74,7 +70,7 @@ public class CalculatorApp
     {
         boolean one = false, four = false;
 
-        if (arri != null && arri.length > 0)
+        if (arri != null && arri.length > 1)
         for (int i : arri)
         {
             if (i == 1)   one = true;

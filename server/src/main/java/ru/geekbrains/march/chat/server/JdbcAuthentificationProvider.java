@@ -52,7 +52,7 @@ public class JdbcAuthentificationProvider implements Authentificator
     }// JdbcAuthentificationProvider ()
 
 
-    public Authentificator close () //< сейчас Authentificator extends Closable
+    public Authentificator close()
     {
         if (dbConnection != null)  dbConnection = dbConnection.close(); //< одной строчкой закрываем и приравниваем нулю.
         statement = null; //< закрывается на стороне dbConnection
@@ -77,7 +77,7 @@ public class JdbcAuthentificationProvider implements Authentificator
         if (Server.validateStrings (login, password))
         {
             try (ResultSet rs = statement.executeQuery(String.format(FRMT_STMENT_SEL_1BY2,
-                                                                     FLD_NICK, TABLE_NAME, FLD_LOGIN, login, FLD_PASS, password));)
+                                      FLD_NICK, TABLE_NAME, FLD_LOGIN, login, FLD_PASS, password));)
             {   if (rs.next())
                     nickName = rs.getString (FLD_NICK);
             }
