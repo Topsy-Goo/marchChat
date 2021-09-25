@@ -68,7 +68,7 @@ public class TestApp
                        test   = m.isAnnotationPresent (Test.class)        ? m : null;
 
                 if (before == null && after == null && test == null)
-                {   println ("ПРЕДУПРЕЖДЕНИЕ: "+m+"\n\t\tметод не будет участвовать в тесте.");
+                {   println ("ПРЕДУПРЕЖДЕНИЕ: "+ m +"\n\t\tметод не будет участвовать в тесте.");
                     continue;
                 }
         //Считаем, что следующие аннотации являются несовместимыми между собою: @BeforeSuite, @AfterSuite и @Test.
