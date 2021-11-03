@@ -131,7 +131,7 @@
 
 <!--  trace < debug < info < warn < error < fatal			-->
 
-        <Logger name="ru.geekbrains.march.chat.server" level="trace" >
+        <Logger name="ru.geekbrains.server" level="trace" >
         	<AppenderRef ref="SERVERAPP"/>
         </Logger>
 
@@ -147,7 +147,7 @@
 <!--        	<AppenderRef ref="SERVERAPP"/>-->
 <!--        </Logger>-->
 
-        <Logger name="ru.geekbrains.march.chat.client" level="trace" >
+        <Logger name="ru.geekbrains.client" level="trace" >
         	<AppenderRef ref="MAIN"/>
         </Logger>
 
