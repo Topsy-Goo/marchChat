@@ -1,17 +1,17 @@
 package ru.geekbrains.server;
 
-import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import ru.geekbrains.server.errorhandlers.UserNotFoundException;
 
 import java.sql.*;
 
 import static ru.geekbrains.server.ServerApp.TABLE_NAME;
 
 public class JdbcAuthentificationProvider implements Authentificator {
-    public static final String FLD_LOGIN = "login";
-    public static final String FLD_PASS = "password";
-    public static final String FLD_NICK = "nickname";
+    public static final String FILD_LOGIN = "login";
+    public static final String FILD_PASS  = "password";
+    public static final String FILD_NICK  = "nickname";
     public static final String FRMT_DROP_TABLE = "DROP TABLE IF EXISTS [%s];";
     public static final String FRMT_STMENT_SEL_1BY2 = "SELECT %s FROM [%s] WHERE %s = '%s' AND %s = '%s';";
     public static final String FRMT_STMENT_SEL_1BY1 = "SELECT %s FROM [%s] WHERE %s = '%s';";
@@ -35,7 +35,7 @@ public class JdbcAuthentificationProvider implements Authentificator {
     private PreparedStatement psUpdate1By1, psInsert3Fld, psDeleteBy1;
     private DbConnection dbConnection;
 
-    public JdbcAuthentificationProvider () {
+    public JdbcAuthentificationProvider () throws SQLException {
         LOGGER.info("JdbcAuthentificationProvider() начало");
         dbConnection = new DbConnection();
         statement = dbConnection.getStatement();
@@ -44,16 +44,15 @@ public class JdbcAuthentificationProvider implements Authentificator {
         //createDbTable (connection); < этот вызов помогает проверить, поддерживается ли используемый здесь синтаксис
         try {
             psUpdate1By1 = connection.prepareStatement(
-                        String.format(FRMT_PREPSTMENT_UPD_SET1BY1, TABLE_NAME, FLD_NICK, FLD_NICK));
+                        String.format(FRMT_PREPSTMENT_UPD_SET1BY1, TABLE_NAME, FILD_NICK, FILD_NICK));
             psInsert3Fld = connection.prepareStatement(
-                        String.format(FRMT_PREPSTMENT_INS_3FLD, TABLE_NAME, FLD_LOGIN, FLD_PASS, FLD_NICK));
+                        String.format(FRMT_PREPSTMENT_INS_3FLD, TABLE_NAME, FILD_LOGIN, FILD_PASS, FILD_NICK));
             psDeleteBy1 = connection.prepareStatement(
-                        String.format(FRMT_PREPSTMENT_DEL_BY1, TABLE_NAME, FLD_LOGIN));
+                        String.format(FRMT_PREPSTMENT_DEL_BY1, TABLE_NAME, FILD_LOGIN));
         }
-        catch (SQLException sqle) {
-            sqle.printStackTrace();
+        catch (SQLException e) {
             close();
-            throw new RuntimeException("\nCannot create object JdbcAuthentificationProvider.");
+            throw e;
         }
         finally {LOGGER.info("JdbcAuthentificationProvider():конец");}
 
@@ -64,12 +63,13 @@ public class JdbcAuthentificationProvider implements Authentificator {
             dbConnection = dbConnection.close(); //< одной строчкой закрываем и приравниваем нулю.
         }
         statement = null; //< закрывается на стороне dbConnection
+        dbConnection = null;
         try {
             if (psUpdate1By1 != null) { psUpdate1By1.close(); }
             if (psInsert3Fld != null) { psInsert3Fld.close(); }
             if (psDeleteBy1 != null) { psDeleteBy1.close(); }
         }
-        catch (SQLException sqle) { sqle.printStackTrace(); }
+        catch (SQLException e) { e.printStackTrace(); }
         finally {
             psUpdate1By1 = null;
             psInsert3Fld = null;
@@ -78,65 +78,78 @@ public class JdbcAuthentificationProvider implements Authentificator {
         return null;
     }
 
-    //Возвращаем ник пользователя, которому в БД соответствуют введённые им логин и пароль.
-    @Override public String authenticate (String login, String password) {
+/** Проверяем, зарегистрирован ли пользователь. Все недоразумения, связанные с авторизацией, возвращаются в виде исключений.
+    @return ник пользователя, которому в БД соответствуют введённые им логин и пароль.
+    @throws UserNotFoundException логин и/или пароль не подошли;
+    @throws SQLException какая-то ошибка БД (пробрасывается).  */
+    @Override public String authenticate (String login, String password) throws SQLException {
+
         String nickName = null;
-        if (Server.validateStrings(login, password)) {
-            try (ResultSet rs = statement.executeQuery(
-                        String.format(FRMT_STMENT_SEL_1BY2,
-                                      FLD_NICK, TABLE_NAME, FLD_LOGIN, login, FLD_PASS, password));) {
-                if (rs.next()) { nickName = rs.getString(FLD_NICK); }
+        if (Server.validateStrings (login, password)) {
+
+            String param = String.format (FRMT_STMENT_SEL_1BY2,
+                                          FILD_NICK, TABLE_NAME, FILD_LOGIN, login, FILD_PASS, password);
+
+            try (ResultSet rs = statement.executeQuery (param)) {
+                if (rs.next())
+                    nickName = rs.getString (FILD_NICK);
             }
-            catch (SQLException throwables) {
-                throwables.printStackTrace();
-                throw new RuntimeException();
+            catch (SQLException e) {
+                e.printStackTrace();
+                throw e;
             }
         }
+        if (nickName == null)
+            throw new UserNotFoundException();
         return nickName;
     }
 
-    // В БД изменяем поле nickname == prevName на newName. (У поля nickname есть атрибут UNIQUE.)
-    @Override public String rename (String prevName, String newName) {
+/** В БД изменяем поле nickname == prevName на newName. (У поля nickname есть атрибут UNIQUE.). В случае
+    кл. недоразумений метод бросает исключение.
+    @return новое имя пользователя или NULL.
+    @throws SQLException если произошла ошибка при работе с базой.  */
+    @Override public String rename (String prevName, String newName) throws SQLException {
+
         String result = null;   //< индикатор ошибки
-        if (Server.validateStrings(prevName, newName)) {
-            LOGGER.debug(String.format("переименование %s >> %s", prevName, newName));
+        if (Server.validateStrings (prevName, newName)) {
+
+            LOGGER.debug(String.format ("переименование %s >> %s", prevName, newName));
             try {
-                //Вносим имя newName в БД вместо prevName (БД настроена так, что если такое имя уже используется, то
-                // она не вернёт ошибку, но и изменять ничего не станет):
-                psUpdate1By1.setString(1, newName);
-                psUpdate1By1.setString(2, prevName);
-                if (psUpdate1By1.executeUpdate() > 0)
-                // Теперь проверяем, сделана ли в БД соотв. запись. (Соотв. графа в БД настроена на уникальные значения.)
-                //  Кроме того, этот метод должен вызываться из синхронизированного контекста.
-                { result = isNicknamePresent(newName); }
-                else { result = ""; }
+                //Вносим имя newName в БД вместо prevName (БД настроена так, что если такое имя уже
+                // используется, то она не вернёт ошибку, но и изменять ничего не станет):
+                psUpdate1By1.setString (1, newName);
+                psUpdate1By1.setString (2, prevName);
+                if (psUpdate1By1.executeUpdate() == 1 && isNicknamePresent (newName))
+                // Теперь проверяем, сделана ли в БД соотв. запись. (Соотв. графа в БД настроена на
+                // уникальные значения. Кроме того, этот метод должен вызываться из синхронизированного
+                // контекста.
+                    result = newName;
             }
             catch (SQLException e) {
-                LOGGER.throwing(Level.ERROR, e);//throwables.printStackTrace();
-                //throw new RuntimeException();
+                e.printStackTrace();
+                throw e;
             }
         }
-        else { LOGGER.error("переименование : битые параметры."); }
+        else LOGGER.error ("переименование : битые параметры.");
         return result;
     }
 
     //(Вспомогательная.) Проверяет наличие ника в базе.
-    String isNicknamePresent (String nickname) {
-        String result = null;
-        if (Server.validateStrings(nickname)) {
-            try (ResultSet rs = statement.executeQuery (
-                    String.format(FRMT_STMENT_SEL_1BY1, FLD_NICK, TABLE_NAME, FLD_NICK, nickname));) {
-                if (rs.next()) {
-                    result = rs.getString(FLD_NICK); //или rs.getString (№);
-                }
-                else {
-                    result = ""; //< индикатор того, что чтение не состоялось
-                }
-                LOGGER.debug("ответ базы : " + result);
+    private boolean isNicknamePresent (String nickname) throws SQLException {
+
+        String dbValue = null;
+        if (Server.validateStrings (nickname)) {
+
+            String param = String.format (FRMT_STMENT_SEL_1BY1, FILD_NICK, TABLE_NAME, FILD_NICK, nickname);
+
+            try (ResultSet rs = statement.executeQuery (param)) {
+                if (rs.next())
+                    dbValue = rs.getString (FILD_NICK); //или rs.getString (№);
+
+                LOGGER.debug("ответ базы : " + dbValue);
             }
-            catch (SQLException e) { LOGGER.throwing(Level.ERROR, e);/*.printStackTrace();*/ }
         }
-        return result;
+        return Server.validateStrings (dbValue);
     }
 
     // Добавляем данные пользователя в БД. (Сейчас он не используется.)
@@ -192,7 +205,7 @@ public class JdbcAuthentificationProvider implements Authentificator {
         try (Statement stnt = connection.createStatement()) {
             result = stnt.executeUpdate (
                 String.format (FORMAT_CREATE_TABLE_IFEXISTS_SQLITE,
-                               TABLE_NAME, FLD_LOGIN, FLD_PASS, FLD_NICK, FLD_LOGIN));
+                               TABLE_NAME, FILD_LOGIN, FILD_PASS, FILD_NICK, FILD_LOGIN));
         }
         catch (SQLException throwables) {
             throwables.printStackTrace();

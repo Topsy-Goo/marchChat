@@ -184,7 +184,10 @@ public class Controller implements Initializable {
 /** Закрытие сокета и обнуление связанных с ним переменных. */
     private void disconnect () { network.disconnect(); }
 
-/** Обрабатываем сообщения, находящиеся в очереди inputqueue. (Run-метод для threadCommandDispatcher.)
+/** Run-метод потока threadCommandDispatcher. Обрабатываем сообщения, находящиеся в очереди
+{@code inputqueue}.<p>
+    Методы {@code messageDispatcher()} и {@code runTreadInputStream()} синхронизируются
+по одному монитору <b>syncQue</b> при использовании очереди сообщений {@code inputqueue}.
 */
     private void messageDispatcher () {
 /* (машинный перевод фрагмента комментария к методу Platform.runLater()):
@@ -207,20 +210,19 @@ public class Controller implements Initializable {
         LOGGER.info("messageDispatcher() выполняется");
         synchronized (syncQue) {
             try {
-                //syncQue.wait(5000); //< threadListenServerCommands нас разбудит, когда положит что-то в inputqueue
                 while (!chatGettingClosed && inputqueue != null) {
                     /*  Такая структура блока while оказалась оптимальной для работы всех трёх потоков: threadJfx, threadCommandDispatcher и threadListenServerCommands.
                     Главная его особенность, которой не рекомендуется принебрегать, это -- приостановка потока threadCommandDispatcher сразу после вызова Platform.runLater(->). Если этого не делать, то поток threadJfx начинает «ломиться» в queuePoll() в то время, когда inputqueue занят преимущественно threadCommandDispatcher'ом. Серии холостых вызовов queuePoll() могут достигать нескольких тысяч подряд.
                     */
-                    if (threadJfx == null || !threadJfx.isAlive()) //< если клиент закрыл приложение, не выходя из чата
-                    {
+                    if (threadJfx == null || !threadJfx.isAlive()) { //< если клиент закрыл приложение, не выходя из чата
                         threadJfx = null;
                         prompt = "Кажется, приложение закрылось до выхода из чата…";
                         chatGettingClosed = true;
                         closeSessionYourSelf = true;
                     }
                     else {
-                        if (!inputqueue.isEmpty()) { Platform.runLater(()->{ chatGettingClosed = !queuePoll(); }); }
+                        if (!inputqueue.isEmpty())
+                            Platform.runLater(()->{ chatGettingClosed = !queuePoll(); });
                         //Использование wait-notify сделало использование sleep() ненужным, но пришлось добавить в клиент один вызов Platform.runLater -- в closeSession(). Теперь в клиенте два вызова Platform.runLater.
                         syncQue.notify();   //< будим поток threadListenServerCommands
                         syncQue.wait(5000); //< даём спокойно поработать threadJfx (на всякий случай укажим таймаут)
@@ -237,17 +239,20 @@ public class Controller implements Initializable {
             finally {
                 String finalPrompt = prompt;
                 if (!closeSessionYourSelf) { Platform.runLater(()->{ closeSession(finalPrompt); }); }
-                else {
+                else
                     closeSession(finalPrompt); //< если родительский поток закрыт, то всё закрываем сами
-                }
                 LOGGER.info("messageDispatcher() завершился");
                 //threadCommandDispatcher = null;
             }
         }
     }
 
-/** Run-метод потока threadListenServerCommands. Считываем сообщения из входного канала соединения и помещаем их в очередь. Больше ничего не делаем.<p>
- Работа потоков организована так, что они обрабатывают за цикл по одному сообщению, но на всякий случай доступ к СК (синхр.конт.) помещён после вызова readUTF(), чтобы он, при некоторых изменениях кода, не заблокировал канал во время захвата СК.  */
+/** Run-метод потока threadListenServerCommands. Считываем сообщения из входного канала
+соединения и помещаем их в очередь {@code inputqueue}.<p>
+   Работа методов {@code messageDispatcher()} и {@code runTreadInputStream()} организована так,
+что они обрабатывают за цикл по одному сообщению, но на всякий случай доступ к СК (синхр.конт.)
+помещён после вызова readUTF(), чтобы он, при некоторых изменениях кода, не заблокировал канал
+во время захвата СК.  */
     private void runTreadInputStream () {
         String msg;
         LOGGER.info("runTreadInputStream() выполняется");
@@ -289,9 +294,8 @@ public class Controller implements Initializable {
                             String[] as = new String[size];
                             as[i++] = CMD_CLIENTS_LIST; // cmd
                             as[i++] = msg;              // count
-                            while (i < size) {
+                            while (i < size)
                                 as[i++] = network.readUTF(); //строки
-                            }
                             queueOffer(as);
                             break;
                         default: {

@@ -19,22 +19,21 @@ public class DbConnection {
             Class.forName(CLASS_NAME);
             statement = connection.createStatement();
         }
-        catch (SQLException throwables) {
-            throwables.printStackTrace();
-            throw new RuntimeException();
+        catch (SQLException trouble) {
+            throw new RuntimeException (trouble);
         }
         catch (ClassNotFoundException e) {
             System.out.printf("\nERROR @ DbConnection(): Class «%s» not found.", CLASS_NAME);
-            e.printStackTrace();
-            throw new RuntimeException("\nCannot create object DbConnection.");
+            //e.printStackTrace();
+            throw new RuntimeException("\nCannot create object DbConnection.", e);
         }
     }
 
 
     public DbConnection close () {
         try {
-            if (connection != null) { connection.close(); }
             if (statement != null) { statement.close(); }
+            if (connection != null) { connection.close(); }
         }
         catch (SQLException throwables) { throwables.printStackTrace(); }
         finally {

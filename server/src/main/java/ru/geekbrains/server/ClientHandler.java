@@ -3,11 +3,15 @@ package ru.geekbrains.server;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import ru.geekbrains.server.errorhandlers.AlreadyLoggedInException;
+import ru.geekbrains.server.errorhandlers.UnableToPerformException;
+import ru.geekbrains.server.errorhandlers.UserNotFoundException;
 
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
 import java.net.Socket;
+import java.sql.SQLException;
 import java.util.Arrays;
 
 import static ru.geekbrains.server.ServerApp.*;
@@ -20,6 +24,7 @@ public class ClientHandler {
     private final static String SERVER_OFF = "Сервер прекратил работу.";
     private final static String PROMPT_LOGINERROR_BUSY = "Учётная запись в настоящий момент используется.";
     private final static String PROMPT_LOGINERROR_INVALID = "Указаны некорректные логин и/или пароль.";
+    private final static String PROMPT_DATABASE_ERROR = "Ошибка базы данных.";
     private final static String ENTER_CHAT = "(вошёл в чат)";
     private final static String PROMPT_RENAMING_ERROR = "Ошибка.";
     private final static String PROMPT_RENAMING_FAILED = "Не удалось переименовать. Возможно, указанное имя пустое или уже используется.";
@@ -164,24 +169,32 @@ public class ClientHandler {
     //Обработчик команды CMD_EXIT
     private void onCmdExit () { connectionGettingClosed = true; }
 
+    private void alreadyLoggedInExceptionHandler () {
+        LOGGER.error (PROMPT_LOGINERROR_BUSY);
+        syncSendMessageToClient (CMD_BADLOGIN, PROMPT_LOGINERROR_BUSY);
+    }
+
     //Обработчик команды CMD_LOGIN.
     private void onCmdLogin () {
-        if (nickname != null) {
-            LOGGER.error("вызов onCmdLogin() при nickname != null (nickname == " + nickname +
-                         "). повторная регистрация?");
-            throw new RuntimeException("ERROR @ runThreadClientToServer() : повторная регистрация?");
-        }
 
-        nickname = server.syncValidateOnLogin(readInputStreamUTF(), readInputStreamUTF(), this);
-        LOGGER.debug("от сервера получен ник: " + nickname);
-
-        if (nickname == null) { syncSendMessageToClient(CMD_BADLOGIN, PROMPT_LOGINERROR_INVALID); }
-        else if (nickname.isEmpty()) {
-            nickname = null;
-            syncSendMessageToClient(CMD_BADLOGIN, PROMPT_LOGINERROR_BUSY);
+        if (nickname != null)
+            alreadyLoggedInExceptionHandler();
+        else
+        try {
+            nickname = server.syncValidateOnLogin (readInputStreamUTF(), readInputStreamUTF(), this);
+            LOGGER.debug ("от сервера получен ник: " + nickname);
+            syncSendMessageToClient (CMD_LOGIN, nickname);
         }
-        else {
-            syncSendMessageToClient(CMD_LOGIN, nickname); //< ok
+        catch (SQLException e) {
+            LOGGER.error (PROMPT_DATABASE_ERROR);
+            syncSendMessageToClient (CMD_BADLOGIN, PROMPT_DATABASE_ERROR);
+        }
+        catch (AlreadyLoggedInException e) {
+            alreadyLoggedInExceptionHandler();
+        }
+        catch (UserNotFoundException e) {
+            LOGGER.error (PROMPT_LOGINERROR_INVALID);
+            syncSendMessageToClient (CMD_BADLOGIN, PROMPT_LOGINERROR_INVALID);
         }
     }
 
@@ -193,20 +206,23 @@ public class ClientHandler {
 
     //Обработчик команды CMD_CHANGE_NICKNAME.
     private void onCmdChangeNickname () {
-        String newnickname = readInputStreamUTF(), result = server.syncChangeNickname(this, newnickname);
 
+        String newnickname = readInputStreamUTF();
         LOGGER.debug("запрошенный ник: " + newnickname);
-        LOGGER.debug("от сервера получен ник: " + result);
 
-        if (result == null) {
-            syncSendMessageToClient(CMD_BADNICKNAME, PROMPT_RENAMING_ERROR);
-        }
-        else if (result.isEmpty()) {
-            syncSendMessageToClient(CMD_BADNICKNAME, PROMPT_RENAMING_FAILED);
-        }
-        else {
+        try {
+            String result = server.syncChangeNickname(this, newnickname);
+            LOGGER.debug("от сервера получен ник: " + result);
             nickname = newnickname;
-            syncSendMessageToClient(CMD_CHANGE_NICKNAME, nickname);
+            syncSendMessageToClient (CMD_CHANGE_NICKNAME, nickname);
+        }
+        catch (SQLException e) {
+            LOGGER.error (PROMPT_RENAMING_ERROR);
+            syncSendMessageToClient (CMD_BADNICKNAME, PROMPT_RENAMING_ERROR);
+        }
+        catch (UnableToPerformException e) {
+            LOGGER.error (PROMPT_RENAMING_FAILED);
+            syncSendMessageToClient (CMD_BADNICKNAME, PROMPT_RENAMING_FAILED);
         }
     }
 

@@ -15,7 +15,7 @@ public class Main extends Application {
     public static void main (String[] args) {
         LOGGER.fatal("---------------------------------------------------------------------------------");
         LOGGER.info("main() : начало");
-        launch(args);
+        Application.launch(args);
         LOGGER.info("main() : конец");
     }
 

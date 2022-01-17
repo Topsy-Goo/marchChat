@@ -3,10 +3,13 @@ package ru.geekbrains.server;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import ru.geekbrains.server.errorhandlers.AlreadyLoggedInException;
+import ru.geekbrains.server.errorhandlers.UnableToPerformException;
 
 import java.io.IOException;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.sql.SQLException;
 import java.util.*;
 
 import static ru.geekbrains.server.ServerApp.*;
@@ -15,23 +18,23 @@ public class Server {
     public static final int PORT_MAX = 65535;
     public static final int PORT_MIN = 0;
     public static final String FORMAT_NO_SUCH_USER = "\nКлиент %s отсутствует в чате.";
-    public static final String SERVERNAME_BASE_ = "ЧатСервер-";
-    public static final String SESSION_START = "Начало сессии.";
+    public static final String SERVERNAME_BASE_    = "ЧатСервер-";
+    public static final String SESSION_START       = "Начало сессии.";
     public static final String WAITING_FOR_CLIENTS = "Ждём подклюение клиента...";
     public static final String FORMAT_RENAMING_TO_ = "(меняет имя на %s)";
-    public static final String FORMAT_LEFT_CHAT = "(%s вышел из чата)";
-    public static final String SERVER_IS_OFF = "Сервер завершил работу.";
+    public static final String FORMAT_LEFT_CHAT    = "(%s вышел из чата)";
+    public static final String SERVER_IS_OFF       = "Сервер завершил работу.";
+    public        final String SERVERNAME;
     public static final Object syncAuth = new Object();
-    public static final Logger LOGGER = LogManager.getLogger(Server.class);
-    public final String SERVERNAME;
-    public static final int THREADS_POOL = 4;
-    private static int serverNameCounter = 0;
-    private static Integer authentificatorUsers = 0;
-    private static Authentificator authentificator;
-    private static long messageCounter = 0; //< для учёта сообщений при логгировании
-    private Map<String, ClientHandler> map; //< список клиентов онлайн
-    private String[] publicCliendsList;
-    private boolean serverGettingOff;
+    public static final Logger LOGGER   = LogManager.getLogger(Server.class);
+    public static final int     THREADS_POOL         = 4;
+    private static      int     serverNameCounter    = 0;
+    private static  Integer authentificatorUsers = 0;
+    private static  Authentificator authentificator;
+    private static  long messageCounter = 0; //< для учёта сообщений при логгировании
+    private         Map<String, ClientHandler> map; //< список клиентов онлайн
+    private         String[] publicCliendsList;
+    private         boolean serverGettingOff;
 
 
     public Server (int port) {
@@ -49,7 +52,13 @@ public class Server {
         //несколько серверов (запущенные на одной машине) могут использовать БД парллельно
         LOGGER.info(methodname + "подключение к БД");
         synchronized (syncAuth) {
-            if (authentificator == null) { authentificator = new JdbcAuthentificationProvider(); }
+            if (authentificator == null)
+                try {
+                    authentificator = new JdbcAuthentificationProvider();
+                }
+                catch (SQLException e) {
+                    throw new RuntimeException ("\nCannot create object JdbcAuthentificationProvider.", e);
+                }
             authentificatorUsers++;
         }
 
@@ -58,6 +67,7 @@ public class Server {
 
         LOGGER.info(methodname + "создание ServerSocket.");
         try (ServerSocket servsocket = new ServerSocket(port)) {
+
             LOGGER.info(methodname + "создание консольного потока");
             new Thread(()->runThreadConsoleToClient(servsocket)).start();
             LOGGER.fatal(String.format("%s\n\t%s", methodname, SESSION_START));
@@ -86,7 +96,7 @@ public class Server {
         LOGGER.info(methodname + "завершил работу");
     }
 
-//(Вспомогательная.) Проверяет строку на пригодность для использования в качестве логина, пароля, ника.
+/** Проверяет строку на пригодность для использования в качестве логина, пароля, ника. */
     public static boolean validateStrings (String... lines) {
         boolean result = lines != null;
         if (result) {
@@ -120,8 +130,9 @@ public class Server {
         }
     }
 
-//Run-метод потока threadConsoleToClient.
+/** Run-метод потока threadConsoleToClient.   */
     private void runThreadConsoleToClient (ServerSocket servsocket) {
+
         LOGGER.info("консольный поток начал работу.");
         String msg;
 
@@ -159,15 +170,21 @@ public class Server {
         }
     }
 
-//Проверяем логин и пароль клиента. (Никуда его не добавляем на этом этапе! Только возвращаем ему ник, если авторизация верная.)
-    public synchronized String syncValidateOnLogin (String login, String password, ClientHandler client) {
-        String nick;
+/** Проверяем логин и пароль клиента. Никуда его не добавляем на этом этапе! Только возвращаем
+    ему ник, если авторизация верная. Метод authenticate() возвращает только никнейм; все недоразумения
+    возвращаются из него в виде исключений (которые мы здесь не обрабатываем, а пропускаем дальше, и даже
+    добавляем одно своё).
+    @return возвращаем строку-никнейм, если авторизация прошла успешно.
+    @throws AlreadyLoggedInException пользователь уже авторизован, т.е. имеем дело с попыткой повторной
+            авторизации.   */
+    public synchronized String syncValidateOnLogin (String login, String password, ClientHandler client)
+                                                    throws SQLException {
+        String nick = null;
         synchronized (syncAuth) {
-            nick = authentificator.authenticate(login, password); //< может вернуть null
+            nick = authentificator.authenticate (login, password);
         }
-        //null - индикатор ошибки БД или того, что логин/пароль не подошли.
-        //пустая строка - индикатор повторного входа в чат
-        if (nick != null && map.containsKey(nick)) { nick = ""; }
+        if (nick != null && map.containsKey (nick))
+            throw new AlreadyLoggedInException();
         return nick;
     }
 
@@ -182,24 +199,32 @@ public class Server {
         else { LOGGER.error("запрошено добавление в чат клиента null."); }
     }
 
-//Клиент запросил смену имени.
-    public synchronized String syncChangeNickname (ClientHandler client, String newnickname) {
+/** Клиент запросил смену имени.
+    @return новое имя пользователя.
+    @throws UnableToPerformException если результат работы метода неудовлетворительный.
+ */
+    public synchronized String syncChangeNickname (ClientHandler client, String newnickname)
+                                                   throws SQLException {
         String result = null;
-        if (client != null && authentificator != null && map != null) {
-            String prevnickname = client.getClientName();
-            synchronized (syncAuth) {
-                result = authentificator.rename(prevnickname, newnickname);
-            }
+        String prevnickname = null;
 
-            LOGGER.info(String.format("на запрос переименовать клиента из «%s» в «%s» БД ответила: %s", prevnickname, newnickname, result));
-            if (result != null && !result.isEmpty()) {
-                map.remove(prevnickname);
-                map.put(newnickname, client);
-                syncUpdatePublicClientsList();
-                syncBroadcastMessage(CMD_CLIENTS_LIST_CHANGED, null);
-                syncBroadcastMessage(String.format(FORMAT_RENAMING_TO_, newnickname), client);
+        if (client != null && authentificator != null && map != null) {
+
+            prevnickname = client.getClientName();
+            synchronized (syncAuth) {
+                result = authentificator.rename (prevnickname, newnickname);
             }
         }
+        if (result == null || result.trim().isEmpty())
+            throw new UnableToPerformException();
+
+        map.remove (prevnickname);
+        map.put (newnickname, client);
+
+        syncUpdatePublicClientsList();
+        syncBroadcastMessage (CMD_CLIENTS_LIST_CHANGED, null);
+        syncBroadcastMessage (String.format(FORMAT_RENAMING_TO_, newnickname), client);
+
         return result;
     }
 
