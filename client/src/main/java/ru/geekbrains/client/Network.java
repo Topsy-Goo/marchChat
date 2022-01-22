@@ -30,9 +30,9 @@ public class Network {
         boolean boolOk = false;
         if (clientSideSocket == null || clientSideSocket.isClosed()) {
             try {
-                clientSideSocket = new Socket(SERVER_ADDRESS, SERVER_PORT);
-                dis = new DataInputStream(clientSideSocket.getInputStream());
-                dos = new DataOutputStream(clientSideSocket.getOutputStream());
+                clientSideSocket = new Socket (SERVER_ADDRESS, SERVER_PORT);
+                dis = new DataInputStream (clientSideSocket.getInputStream());
+                dos = new DataOutputStream (clientSideSocket.getOutputStream());
                 boolOk = true;
                 LOGGER.info("connect() подключен");
             }
@@ -51,7 +51,8 @@ public class Network {
     public void disconnect () {
         LOGGER.info("disconnect() - начало отключения");
         try {
-            if (clientSideSocket != null && !clientSideSocket.isClosed()) { clientSideSocket.close(); }
+            if (clientSideSocket != null && !clientSideSocket.isClosed())
+                clientSideSocket.close();
         }
         catch (IOException e) { LOGGER.throwing(Level.ERROR, e); }
         finally {
@@ -78,7 +79,8 @@ public class Network {
             }
             catch (IOException e) {
                 LOGGER.info("ERROR @ sendMessageToServer() - " + PROMPT_UNABLE_TO_SEND_MESSAGE);
-                if (onSendMessageToServer != null) { onSendMessageToServer.callback(e); }
+                if (onSendMessageToServer != null)
+                    onSendMessageToServer.callback(e);
                 LOGGER.throwing(Level.ERROR, e);
             }
         }

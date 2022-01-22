@@ -12,23 +12,20 @@ public class DbConnection {
     private Connection connection;
     private Statement statement;
 
-
     public DbConnection () {
         try {
-            connection = DriverManager.getConnection(DATABASE_URL);
             Class.forName(CLASS_NAME);
+            connection = DriverManager.getConnection(DATABASE_URL);
             statement = connection.createStatement();
         }
-        catch (SQLException trouble) {
+        catch (SQLException trouble) {      //для getConnection() и createStatement()
             throw new RuntimeException (trouble);
         }
-        catch (ClassNotFoundException e) {
-            System.out.printf("\nERROR @ DbConnection(): Class «%s» not found.", CLASS_NAME);
-            //e.printStackTrace();
-            throw new RuntimeException("\nCannot create object DbConnection.", e);
+        catch (ClassNotFoundException e) {  //для Class.forName
+            String err = String.format("\nERROR @ DbConnection(): Class «%s» not found.\n", CLASS_NAME);
+            throw new RuntimeException (err, e);
         }
     }
-
 
     public DbConnection close () {
         try {

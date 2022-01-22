@@ -15,34 +15,34 @@ import java.util.*;
 import static ru.geekbrains.server.ServerApp.*;
 
 public class Server {
-    public static final int PORT_MAX = 65535;
-    public static final int PORT_MIN = 0;
-    public static final String FORMAT_NO_SUCH_USER = "\nКлиент %s отсутствует в чате.";
-    public static final String SERVERNAME_BASE_    = "ЧатСервер-";
-    public static final String SESSION_START       = "Начало сессии.";
-    public static final String WAITING_FOR_CLIENTS = "Ждём подклюение клиента...";
-    public static final String FORMAT_RENAMING_TO_ = "(меняет имя на %s)";
-    public static final String FORMAT_LEFT_CHAT    = "(%s вышел из чата)";
-    public static final String SERVER_IS_OFF       = "Сервер завершил работу.";
-    public        final String SERVERNAME;
-    public static final Object syncAuth = new Object();
-    public static final Logger LOGGER   = LogManager.getLogger(Server.class);
-    public static final int     THREADS_POOL         = 4;
-    private static      int     serverNameCounter    = 0;
-    private static  Integer authentificatorUsers = 0;
-    private static  Authentificator authentificator;
-    private static  long messageCounter = 0; //< для учёта сообщений при логгировании
-    private         Map<String, ClientHandler> map; //< список клиентов онлайн
-    private         String[] publicCliendsList;
-    private         boolean serverGettingOff;
+    public  static final int PORT_MAX = 65535;
+    public  static final int PORT_MIN = 0;
+    public  static final String FORMAT_NO_SUCH_USER = "\nКлиент %s отсутствует в чате.";
+    public  static final String SERVERNAME_BASE_    = "ЧатСервер-";
+    public  static final String SESSION_START       = "Начало сессии.";
+    public  static final String WAITING_FOR_CLIENTS = "Ждём подклюение клиента...";
+    public  static final String FORMAT_RENAMING_TO_ = "(меняет имя на %s)";
+    public  static final String FORMAT_LEFT_CHAT    = "(%s вышел из чата)";
+    public  static final String SERVER_IS_OFF       = "Сервер завершил работу.";
+    public         final String SERVERNAME;
+    public  static final Object syncAuth = new Object();
+    public  static final Logger LOGGER   = LogManager.getLogger(Server.class);
+    public  static final int     THREADS_POOL         = 4;
+    private static       int     serverNameCounter    = 0;
+    private static       Integer authentificatorUsers = 0;
+    private static       long            messageCounter = 0; //< для учёта сообщений при логгировании
+    private              String[]        publicCliendsList;
+    private              boolean         serverGettingOff;
+    private static       Authentificator authentificator;
+    private              Map<String, ClientHandler> map; //< список клиентов онлайн
 
 
     public Server (int port) {
-        //LOGGER.fatal("------------------------------------------------------------------------------------------------");
         String methodname = String.format("Server(%d): ", port);
         LOGGER.info(methodname + "начал работу -------------------------------");
 
-        if (port < PORT_MIN || port > PORT_MAX) { throw new IllegalArgumentException(); }
+        if (port < PORT_MIN || port > PORT_MAX)
+            throw new IllegalArgumentException();
 
         SERVERNAME = SERVERNAME_BASE_ + serverNameCounter++;
         serverGettingOff = false;
@@ -75,25 +75,24 @@ public class Server {
             LOGGER.info(methodname + "вход в основной цикл");
             while (!serverGettingOff) {
                 LOGGER.fatal(String.format("%s\n\t%s", methodname, WAITING_FOR_CLIENTS));
+
                 Socket serverSideSocket = servsocket.accept();
                 LOGGER.info(methodname + "получен запрос на подключение; создаём ClientHandler");
-                //executorservice.execute(()->{
+
                 new ClientHandler(this, serverSideSocket);
-                //print ("\n\t"+Thread.currentThread().getName());
-                //});
                 LOGGER.info(methodname + "ClientHandler создан");
             }
             LOGGER.info(methodname + "выход из основного цикла.");
         }
         catch (IOException ioe) {
-            LOGGER.throwing(Level.ERROR, ioe);//ioe.printStackTrace();
+            LOGGER.throwing (Level.ERROR, ioe);
         }
-        finally {   //executorservice.shutdown();
+        finally {
             serverGettingDown();
-            LOGGER.info(methodname + SERVER_IS_OFF);
+            LOGGER.info (methodname + SERVER_IS_OFF);
             //(После закрытия ServerSocket'а открытые соединения продолжают работать, но создавать новые нет возможности.)
         }
-        LOGGER.info(methodname + "завершил работу");
+        LOGGER.info (methodname + "завершил работу");
     }
 
 /** Проверяет строку на пригодность для использования в качестве логина, пароля, ника. */
@@ -114,15 +113,14 @@ public class Server {
     private void serverGettingDown () {
         synchronized (syncAuth) {
             if (--authentificatorUsers <= 0 && authentificator != null) {
-                LOGGER.debug("serverGettingDown() приступил к отключению от БД; счётчик пользователей БД = " + authentificatorUsers);
+                LOGGER.debug ("serverGettingDown() приступил к отключению от БД; счётчик пользователей БД = " + authentificatorUsers);
                 authentificator = authentificator.close();
             }
         }
-        if (map != null) //< закрываем всех клиентов.
-        {
+        if (map != null) { //< закрываем всех клиентов.
             LOGGER.info("serverGettingDown() приступил к отключению клиентов.");
-
-            for (Map.Entry<String, ClientHandler> entry : map.entrySet()) { entry.getValue().onServerDown(SERVERNAME); }
+            for (Map.Entry<String, ClientHandler> entry : map.entrySet())
+                entry.getValue().onServerDown(SERVERNAME);
 
             map.clear();
             map = null;
@@ -132,9 +130,8 @@ public class Server {
 
 /** Run-метод потока threadConsoleToClient.   */
     private void runThreadConsoleToClient (ServerSocket servsocket) {
-
-        LOGGER.info("консольный поток начал работу.");
         String msg;
+        LOGGER.info("консольный поток начал работу.");
 
         if (servsocket != null) {
             try (Scanner sc = new Scanner(System.in)) {
@@ -149,11 +146,14 @@ public class Server {
                             servsocket.close();
                         }
                         else if (msg.equalsIgnoreCase(CMD_PRIVATE_MSG)) {
+
                             System.out.print("Личное сообщение для кого: ");
                             String nameTo = sc.nextLine().trim();
+
                             System.out.print("Текст сообщения: ");
                             String message = sc.nextLine();
                             LOGGER.info(String.format("в консоли набрано личное сообщение:\nкому = %s\nтекст сообщения = %s", nameTo, message));
+
                             String result = syncSendPrivateMessage(nameTo, message, null) ? "Отправлено." : "Не отправлено.";
                             println(result);
                             //LOGGER.info("result");
@@ -178,8 +178,8 @@ public class Server {
     @throws AlreadyLoggedInException пользователь уже авторизован, т.е. имеем дело с попыткой повторной
             авторизации.   */
     public synchronized String syncValidateOnLogin (String login, String password, ClientHandler client)
-                                                    throws SQLException {
-        String nick = null;
+                                                    throws SQLException
+    {   String nick = null;
         synchronized (syncAuth) {
             nick = authentificator.authenticate (login, password);
         }
@@ -204,8 +204,8 @@ public class Server {
     @throws UnableToPerformException если результат работы метода неудовлетворительный.
  */
     public synchronized String syncChangeNickname (ClientHandler client, String newnickname)
-                                                   throws SQLException {
-        String result = null;
+                                                   throws SQLException
+    {   String result = null;
         String prevnickname = null;
 
         if (client != null && authentificator != null && map != null) {
@@ -224,7 +224,6 @@ public class Server {
         syncUpdatePublicClientsList();
         syncBroadcastMessage (CMD_CLIENTS_LIST_CHANGED, null);
         syncBroadcastMessage (String.format(FORMAT_RENAMING_TO_, newnickname), client);
-
         return result;
     }
 
@@ -260,8 +259,10 @@ public class Server {
             for (Map.Entry<String, ClientHandler> entry : map.entrySet()) {
                 ClientHandler client = entry.getValue();
 
-                if (msg.equalsIgnoreCase(CMD_CLIENTS_LIST_CHANGED)) { boolSent = client.syncSendMessageToClient(CMD_CLIENTS_LIST_CHANGED); }
-                else { boolSent = client.syncSendMessageToClient(CMD_CHAT_MSG, nameFrom, msg); }
+                if (msg.equalsIgnoreCase(CMD_CLIENTS_LIST_CHANGED))
+                    boolSent = client.syncSendMessageToClient(CMD_CLIENTS_LIST_CHANGED);
+                else
+                    boolSent = client.syncSendMessageToClient(CMD_CHAT_MSG, nameFrom, msg);
             }
             LOGGER.info(String.format("широковещ.рассылка завершена (№ %d).", messageCounter));
         }
@@ -281,10 +282,10 @@ public class Server {
             for (Map.Entry<String, ClientHandler> entry : map.entrySet()) {
                 ClientHandler clientTo = entry.getValue();
                 if (nameTo.equals(clientTo.getClientName())) {
-                    if (clientFrom == null && message.equalsIgnoreCase(CMD_EXIT)) //< Server научился отключать пользователей.
-                    { boolSent = clientTo.syncSendMessageToClient(CMD_EXIT); }
-                    else { boolSent = clientTo.syncSendMessageToClient(CMD_PRIVATE_MSG, nameFrom, message); }
-
+                    if (clientFrom == null && message.equalsIgnoreCase (CMD_EXIT)) //< Server научился отключать пользователей.
+                        boolSent = clientTo.syncSendMessageToClient (CMD_EXIT);
+                    else
+                        boolSent = clientTo.syncSendMessageToClient (CMD_PRIVATE_MSG, nameFrom, message);
             // (Приватные (личные) сообщения не дублируем тправителю, т.к. это нарушит работу механизма сохранения истории чата -- придётся вводить в класс ChatMessage лишние поля. Сейчас клиенту выводится его отправленное личное сообщение средствами Controller'а, что даже и более логично.)
                     break;
                 }
@@ -292,12 +293,14 @@ public class Server {
             //проверка отправки сообщения несуществующему клиенту (по результатам разбора ДЗ-7)
             if (!boolSent) {
                 LOGGER.warn(String.format("не удалось отправить личное сообщение (№ %d)", messageCounter));
-                if (clientFrom == null) { System.out.printf(FORMAT_NO_SUCH_USER, nameTo); }
-                else { clientFrom.syncSendMessageToClient(String.format(FORMAT_NO_SUCH_USER, nameTo)); }
+                if (clientFrom == null)
+                    System.out.printf(FORMAT_NO_SUCH_USER, nameTo);
+                else
+                    clientFrom.syncSendMessageToClient(String.format(FORMAT_NO_SUCH_USER, nameTo));
             }
-            LOGGER.info(String.format("личн.сообщение отправлено (№ %d)", messageCounter));
+            LOGGER.info (String.format("личн.сообщение отправлено (№ %d)", messageCounter));
         }
-        else { LOGGER.error("syncSendPrivateMessage(): invalid string passed in."); }
+        else LOGGER.error ("syncSendPrivateMessage(): invalid string passed in.");
         return boolSent;
     }
 
