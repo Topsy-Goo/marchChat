@@ -51,20 +51,21 @@ public class MessageStenographer<T extends Serializable> implements Stenographer
 
 /** Добавляем одно сообщение к истории чата. */
     @Override public void append (T t) {
-        if (t != null) { datalist.add(t); }
+        if (t != null)
+            datalist.add(t);
     }
 
 /** Перезаписываем всю историю чата в файл. (У меня не получилось последовательно читать из файла объекты, т.к. из ObjectInputStream почему-то извлекался только один (первый) объект. Пришлось выходить из положения.   */
     @Override public List<T> getData () {
         if (datalist == null) {
             if (file.canRead()) {
-                try (ObjectInputStream ois = new ObjectInputStream(new FileInputStream(file));) // ObjectInputStream в close() закрывает и FileInputStream.
+                // ObjectInputStream.close() закрывает и FileInputStream.
+                try (ObjectInputStream ois = new ObjectInputStream (new FileInputStream (file)))
                 {
                     datalist = (List<T>) ois.readObject();
                     System.out.printf("\n\tистория считана из <%s>", filename); //< для отладки
                 }
-                catch (EOFException e) //< пустой файл?
-                {
+                catch (EOFException e) { //< пустой файл?
                     datalist = new ArrayList<>(16);
                 }
                 catch (IOException | ClassNotFoundException e) { e.printStackTrace(); }

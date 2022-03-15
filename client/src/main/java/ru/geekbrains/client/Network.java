@@ -16,8 +16,8 @@ public class Network {
     public final static String PROMPT_UNABLE_TO_CONNECT = "Не удалось подключиться.";
     private static final Logger LOGGER = LogManager.getLogger(Network.class);
     protected Socket clientSideSocket;
-    protected DataInputStream dis;
-    protected DataOutputStream dos;
+    protected DataInputStream dis;  //< Можно былобы использовать ObjectInputStream и ObjectOutputStream
+    protected DataOutputStream dos; //  и не мучаться с однострочными сообщениями.
     protected Callback onConnectionFailed;
     protected Callback onSendMessageToServer;
 

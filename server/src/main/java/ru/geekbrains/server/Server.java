@@ -35,6 +35,7 @@ public class Server {
     private              boolean         serverGettingOff;
     private static       Authentificator authentificator;
     private              Map<String, ClientHandler> map; //< список клиентов онлайн
+    private              Thread threadConsoleToClient;
 
 
     public Server (int port) {
@@ -69,7 +70,8 @@ public class Server {
         try (ServerSocket servsocket = new ServerSocket(port)) {
 
             LOGGER.info(methodname + "создание консольного потока");
-            new Thread(()->runThreadConsoleToClient(servsocket)).start();
+            threadConsoleToClient = new Thread(()->runThreadConsoleToClient(servsocket));
+            threadConsoleToClient.start();
             LOGGER.fatal(String.format("%s\n\t%s", methodname, SESSION_START));
 
             LOGGER.info(methodname + "вход в основной цикл");
@@ -134,7 +136,7 @@ public class Server {
         LOGGER.info("консольный поток начал работу.");
 
         if (servsocket != null) {
-            try (Scanner sc = new Scanner(System.in)) {
+            try (Scanner sc = new Scanner (System.in)) {
                 while (!serverGettingOff) {
                     msg = sc.nextLine().trim();
 
