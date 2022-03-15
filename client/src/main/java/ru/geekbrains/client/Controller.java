@@ -57,7 +57,6 @@ public class Controller implements Initializable {
     private final static boolean LOGED_IN  = true, LOGED_OFF = !LOGED_IN;
     private final static boolean SEND_EXIT = true, DONTSEND_EXIT = !SEND_EXIT;
     private final static boolean TIPS_ON   = true, TIPS_OFF = !TIPS_ON;
-    private final static boolean MODE_PRIVATE = true,  MODE_PUBLIC = !MODE_PRIVATE;
     public  final static boolean PRIVATE_MSG  = true,  PUBLIC_MSG = !PRIVATE_MSG;
     private final static boolean INPUT_MSG    = true,  OUTPUT_MSG = !INPUT_MSG;
     private final static boolean ANSWER_NO    = false, ANSWER_YES = !ANSWER_NO;
@@ -83,7 +82,6 @@ public class Controller implements Initializable {
     private Thread treadInputStream;
     private Thread threadJfx;
     private MessageStenographer<ChatMessage> stenographer;
-    private boolean privateMode = MODE_PUBLIC;
     private boolean changeNicknameMode = MODE_KEEP_NICKNAME;
     private boolean tipsMode = TIPS_ON;
     private boolean boolCloseRequest = false;
@@ -139,7 +137,6 @@ public class Controller implements Initializable {
     private void updateUserInterface (boolean canChat) {
         txtfieldUsernameField.setDisable(canChat == CAN_CHAT);
         buttonLogout.setVisible(canChat == CAN_CHAT);
-        btnToolbarPrivate.setSelected(privateMode);
         btnToolbarChangeNickname.setSelected(changeNicknameMode);
 
         if (canChat == CAN_CHAT) {
@@ -410,7 +407,6 @@ public class Controller implements Initializable {
         }
         return true;
     }
-
 //------------------------- обработчики команд интерфейса ----------------------------
 
 /** Обработка ввода пользователем логина и пароля для входа чат. */
@@ -464,7 +460,7 @@ public class Controller implements Initializable {
             if (b == ANSWER_YES)
                 boolSent = network.sendMessageToServer(CMD_CHANGE_NICKNAME, message);
         }
-        else if (privateMode == MODE_PRIVATE) { // исходящие приватные сообщения
+        else if (btnToolbarPrivate.isSelected()) { // исходящие приватные сообщения
 
             String addressee = listviewClients.getSelectionModel().getSelectedItem();
 
@@ -497,13 +493,10 @@ public class Controller implements Initializable {
     списке участников чата.  */
     @FXML public void onactionTogglePrivateMode () {
         LOGGER.info("onactionTogglePrivateMode() call");
-        privateMode = !privateMode;
-        btnToolbarPrivate.setSelected(privateMode);
         if (tipsMode == TIPS_ON)
             txtareaMessages.appendText (
-                privateMode ? PROMPT_PRIVATE_MODE_IS_ON : PROMPT_PRIVATE_MODE_IS_OFF);
+                btnToolbarPrivate.isSelected() ? PROMPT_PRIVATE_MODE_IS_ON : PROMPT_PRIVATE_MODE_IS_OFF);
     }
-
 //------------------------- вспомогательные методы ----------------------------
 
 /** Обработка нажатия на кнопку «Сменить ник» (переключение режима смены ника).  */
@@ -593,9 +586,7 @@ public class Controller implements Initializable {
         //threadCommandDispatcher.interrupt();
     }
 }
-/*  TODO : Преподаватель «анонсировал» короткое чтение истории чата из файла (применительно к его версии чата): Files.lines(Paths.get("log.txt"))
-              .collect(Collectors.joining("\n"));
-*/
+
 // (машинный перевод фрагмента комментария к методу Platform.runLater()):
 //
 //    … запускает Runnable в потоке JavaFX в неопределенное время в будущем. Этот метод может быть вызван из любого потока. Он отправит Runnable в очередь событий, а затем немедленно вернется к вызывающему.
