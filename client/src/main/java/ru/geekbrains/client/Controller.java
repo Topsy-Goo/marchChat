@@ -3,12 +3,16 @@ package ru.geekbrains.client;
 import javafx.application.Platform;
 import javafx.collections.ObservableList;
 import javafx.event.ActionEvent;
+import javafx.event.Event;
+import javafx.event.EventHandler;
 import javafx.fxml.FXML;
 import javafx.fxml.Initializable;
 import javafx.scene.control.*;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
 import javafx.scene.text.Text;
+import javafx.stage.Window;
+import javafx.stage.WindowEvent;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -16,12 +20,14 @@ import ru.geekbrains.server.Server;
 
 import java.io.IOException;
 import java.io.Serializable;
+import java.lang.reflect.InvocationTargetException;
 import java.net.URL;
 import java.time.LocalDateTime;
 import java.util.*;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
+import static java.lang.String.format;
 import static ru.geekbrains.client.Main.WNDTITLE_APPNAME;
 import static ru.geekbrains.server.ServerApp.*;
 
@@ -84,7 +90,36 @@ public class Controller implements Initializable {
     private MessageStenographer<ChatMessage> stenographer;
     private boolean changeNicknameMode = MODE_KEEP_NICKNAME;
     private boolean tipsMode = TIPS_ON;
-    private boolean boolCloseRequest = false;
+
+
+    private static class ChatMessage implements Serializable {
+        private final String name, text;   //< Serializable
+        private final boolean inputMsg, privateMsg;
+        private final LocalDateTime ldt = LocalDateTime.now(); //< Serializable (сейчас не используется)
+
+/*        private ChatMessage (){
+            name       = null;
+            text       = null;
+            inputMsg   = false;
+            privateMsg = false;
+        }*/
+        public ChatMessage (String nickname, String message, boolean input, boolean prv)
+        {
+            name       = nickname;
+            text       = message;
+            inputMsg   = input;
+            privateMsg = prv;
+            if (validateStrings (nickname, message))
+                inlineReportError ("Controller.ChatMessage", "bad parameters", IllegalArgumentException.class);
+        }
+
+        @Override public String toString () {
+            String format = FORMAT_CHATMSG;
+            if (privateMsg)
+                format = inputMsg ? FORMAT_PRIVATEMSG_TOYOU : FORMAT_PRIVATEMSG_FROMYOU;
+            return format (format, name, text);
+        }
+    }
 
 
 /** Инициализация контроллера. */
@@ -158,14 +193,24 @@ public class Controller implements Initializable {
         vboxClientsList.setVisible(canChat == CAN_CHAT);
         vboxClientsList.setManaged(canChat == CAN_CHAT);
     }
-//--------------------------------------------------- потоки и очередь
 
-/** Соединение с сервером. */
-    private boolean connect () {
-        if (!boolCloseRequest) { //< на случай, если юзер выйдет из чата просто закрыв окно приложения.
-            rootbox.getScene().getWindow().setOnCloseRequest((event)->closeSession(EMERGENCY_EXIT_FROM_CHAT));
+
+    EventHandler<WindowEvent> eventHandler = new EventHandler<WindowEvent>() {
+        @Override
+        public void handle (WindowEvent event) {
+            closeSession (EMERGENCY_EXIT_FROM_CHAT);
+            //if (event != null)
+            //    Event.fireEvent (event.getTarget(), event); < это вызовет нас же. Будет замкнутый цикл.
         }
-        boolCloseRequest = true;
+    }; /*(event)->closeSession (EMERGENCY_EXIT_FROM_CHAT)*/
+
+/** Соединение с сервером.<p>
+    Также устанавливается обработчик на закрытие окна приложения на случай, если юзер выйдет из приложения,
+    не выходя из чата. */
+    private boolean connect () {
+        Window window = rootbox.getScene().getWindow(); //< мы не можем это сделать в Controller.initialize().
+        if (window.getOnCloseRequest() != eventHandler)
+            window.setOnCloseRequest (eventHandler);
         return network.connect();
     }
 
@@ -173,13 +218,9 @@ public class Controller implements Initializable {
     private void disconnect () { network.disconnect(); }
 
 /** Run-метод потока threadListenServerCommands. Считываем сообщения из входного канала
-соединения и помещаем их в очередь {@code inputqueue}. В очередь помещаем команду в том виде, в каком мы её получили, включая код команды. В этом нам помогает {@code queueOffer(…)}.<p>
-   Работа методов {@code messageDispatcher()} и {@code runTreadInputStream()} организована так,
-что они обрабатывают за цикл по одному сообщению, но на всякий случай доступ к СК (синхр.конт.)
-помещён после вызова readUTF(), чтобы он, при некоторых изменениях кода, не заблокировал канал
-во время захвата СК.  */
+соединения и скармливаем их {@code SingleThreadExecutor'у}.     */
     private void runTreadInputStream () {
-        LOGGER.info("runTreadInputStream() выполняется");
+        LOGGER.info("runTreadInputStream() начал выполняться");
         ExecutorService executorService = Executors.newSingleThreadExecutor();
         try {
             while (!Thread.currentThread().isInterrupted()) {
@@ -204,11 +245,11 @@ public class Controller implements Initializable {
                         name = network.readUTF();
                         executorService.execute (()->onCmdChangeNickname (name));
                         break;
-                    case CMD_CLIENTS_LIST: /* Нам передают сообщение со списком участников чата; список предваряет число-количество элементов списка (lstParts). */
-                        int i = 0, listSize = Integer.parseInt (network.readUTF());
+                    case CMD_CLIENTS_LIST: /* Нам передают сообщение со списком участников чата; список предваряет число-количество элементов списка (listSize). */
+                        int i = 0, listSize = Math.min (0, Integer.parseInt (network.readUTF()));
                         String[] names = new String [listSize];
                         while (i < listSize)
-                            names[i++] = network.readUTF(); //строки
+                            names[i++] = network.readUTF(); //< имена участников чата
                         executorService.execute (()->onCmdClientsList (names));
                         break;
                     case CMD_CLIENTS_LIST_CHANGED:
@@ -253,18 +294,31 @@ public class Controller implements Initializable {
 //------------------------- обработчики сетевых команд ----------------------------
 
 /** Обработчик команды CMD_CHAT_MSG (здесь обрабатываются входящие и исходящие публичные сообщения). */
-    boolean onCmdChatMsg (String name, String message) {
-        if (!validateStrings (name, message)) {
-            if (DEBUG)
-                throw new RuntimeException ("ERROR @ onCmdChatMsg() : bad argument.");
-            return false;
+    void onCmdChatMsg (String name, String message) {
+        if (validateStrings (name, message))
+            inlineAppendMessage (name, message, name.equals (nickname), PUBLIC_MSG);
+        else
+            inlineReportError ("onCmdChatMsg", "bad argument", IllegalArgumentException.class);
+    }
+
+    private static <E extends RuntimeException> void inlineReportError (
+                            String methodName, String text, Class<E> eClass)
+    {
+        String err = format ("ERROR @ %s() : %s.", methodName, text);
+        if (DEBUG) {
+            try {
+               throw eClass.getConstructor (String.class).newInstance (err);
+            }
+            catch (NoSuchMethodException
+                 | InvocationTargetException
+                 | InstantiationException
+                 | IllegalAccessException e) { e.printStackTrace(); }
         }
-        inlineAppendMessage (name, message, name.equals (nickname), PUBLIC_MSG);
-        return true;
+        LOGGER.error(err);
     }
 
     private void inlineAppendMessage (String name, String message, boolean input, boolean prv) {
-        ChatMessage cm = new ChatMessage (name, message, input, prv);
+        ChatMessage cm = new ChatMessage(name, message, input, prv);
         if (stenographer != null)
             stenographer.append (cm);
 
@@ -275,50 +329,48 @@ public class Controller implements Initializable {
     }
 
 /** Обработчик команды CMD_PRIVATE_MSG (здесь обрабатываются только входящие приватные сообщения).   */
-    boolean onCmdPrivatMsg (String name, String message) {
-        if (!validateStrings (name, message)) {
-            if (DEBUG)
-                throw new RuntimeException ("ERROR @ onCmdPrivatMsg() : bad argument.");
-            return false;
-        }
-        inlineAppendMessage (name, message, INPUT_MSG, PRIVATE_MSG);
-        return true;
+    void onCmdPrivatMsg (String name, String message) {
+        if (validateStrings (name, message))
+            inlineAppendMessage (name, message, INPUT_MSG, PRIVATE_MSG);
+        else
+            inlineReportError ("onCmdPrivatMsg","bad argument", IllegalArgumentException.class);
     }
 
 /** Обработчик команды CMD_LOGIN (сообщение приходит в случае успешной авторизации). */
-    boolean onCmdLogIn (String name) {
-        if (!validateStrings (name))
-            throw new RuntimeException("ERROR @ onCmdLogIn() : bad login.");
-        nickname = name;
-        readChatStorage();    //< Считываем историю чата из файла
-        updateUserInterface (CAN_CHAT);
-        LOGGER.info("onCmdLogIn()/nickname: " + nickname);
-        return (network != null) && network.sendMessageToServer (CMD_LOGIN_READY); //< сообщаем о готовности войти в чат (теперь мы участники чата)
+    void onCmdLogIn (String name) {
+        //boolean ok = false;
+        if (validateStrings (name)) {
+            nickname = name;
+            readChatStorage();    //< Считываем историю чата из файла
+            updateUserInterface (CAN_CHAT);
+            LOGGER.info("onCmdLogIn()/nickname: " + nickname);
+            if (network != null)
+                /*ok = */network.sendMessageToServer (CMD_LOGIN_READY);
+        }
+        else inlineReportError ("onCmdLogIn", "bad login string", IllegalArgumentException.class);
     }
 
 /** Обработчик команды CMD_CHANGE_NICKNAME.  */
-    boolean onCmdChangeNickname (String name) {
-        if (!validateStrings (name))
-            throw new RuntimeException("ERROR @ onCmdChangeNickname() : bad nickname.");
-        nickname = name;
-
-        Platform.runLater(()->{
-            txtfieldUsernameField.setText (nickname);
-            onactionChangeNickname();   //< Отщёлкиваем кнопку «Сменить имя» в исходное состояние.
-            txtfieldMessage.clear();//< перед отправкой запроса на сервер мы оставили имя в поле ввода.
-            // Теперь нужно его оттуда убрать.
-            txtfieldMessage.requestFocus();
-        });
-        LOGGER.info("поменял имя на: " + nickname);
-        return true;
+    void onCmdChangeNickname (String name) {
+        if (validateStrings (name)) {
+            nickname = name;
+            Platform.runLater(()->{
+                txtfieldUsernameField.setText (nickname);
+                onactionChangeNickname();   //< Отщёлкиваем кнопку «Сменить имя» в исходное состояние.
+                txtfieldMessage.clear();//< перед отправкой запроса на сервер мы оставили имя в поле ввода.
+                // Теперь нужно его оттуда убрать.
+                txtfieldMessage.requestFocus();
+            });
+            LOGGER.info("поменял имя на: " + nickname);
+        }
+        else inlineReportError ("onCmdChangeNickname", "bad nickname", IllegalArgumentException.class);
     }
 
 /** Обработчик команды CMD_CLIENTS_LIST. */
-    boolean onCmdClientsList (String[] names) {
+    void onCmdClientsList (String[] names) {
         if (names == null)
-            throw new RuntimeException("ERROR @ onCmdClientsList() : queue polling error (number).");
-
-        int size = names.length;
+            throw new RuntimeException ("ERROR @ onCmdClientsList() : queue polling error (number).");
+        else
         Platform.runLater(()->{
             //Запоминаем выбранный пункт.
             ObservableList<String> olSelected = listviewClients.getSelectionModel().getSelectedItems();
@@ -344,37 +396,35 @@ public class Controller implements Initializable {
                     listviewClients.getSelectionModel().select (s);
             }
         });
-        return true;
     }
 
 /** Обработчик команды CMD_CLIENTS_LIST_CHANGED    */
-    boolean onCmdClientsListChanged () {
-        return (network != null) && network.sendMessageToServer (CMD_CLIENTS_LIST);
+    void onCmdClientsListChanged () {
+        if (network != null)
+            network.sendMessageToServer (CMD_CLIENTS_LIST);
     }
 
 /** Обработчик команды CMD_CONNECTED. Информируем пользователя об устанке соединения с сервером. */
-    boolean onCmdConnected () {
-        txtareaMessages.appendText (PROMPT_CONNECTION_ESTABLISHED);
-        return true;
+    void onCmdConnected () {
+        if (txtareaMessages != null)
+            txtareaMessages.appendText (PROMPT_CONNECTION_ESTABLISHED);
     }
 
 /** Обработчик команды CMD_BADLOGIN. Сообщаем пользователю о том, что введённые логин и пароль не подходят. (Установленное соединение не рвём.)  */
-    boolean onCmdBadLogin (String prompt) {
+    void onCmdBadLogin (String prompt) {
         if (validateStrings (prompt))
             Platform.runLater(()->alertWarning (ALERT_HEADER_LOGINERROR, prompt));
         closeSession (PROMPT_CONNECTION_LOST + "\n" + prompt);
-        return true;
     }
 
 /** Обработчик команды CMD_BADNICKNAME. Сообщаем пользователю о том, что введённый ник не годится для смены ника.    */
-    boolean onCmdBadNickname (String prompt) {
+    void onCmdBadNickname (String prompt) {
         if (validateStrings (prompt))
             Platform.runLater(()->alertWarning (ALERT_HEADER_RENAMING, prompt));
-        return true;
     }
 
 /** Обработчик команды CMD_EXIT. Должна вызываться из синхронизированного контекста, т.к. обращается к inputqueue. Также вызывается из: closeSession().  */
-    boolean onCmdExit (String prompt) {
+    void onCmdExit (String prompt) {
         LOGGER.info("onCmdExit() начало");
 
         interruptQueueThreads(); //< это заставит завершиться дополнительные потоки
@@ -405,7 +455,6 @@ public class Controller implements Initializable {
             nickname = null;
             LOGGER.info("onCmdExit() конец");
         }
-        return true;
     }
 //------------------------- обработчики команд интерфейса ----------------------------
 
@@ -424,7 +473,7 @@ public class Controller implements Initializable {
                 txtfieldPassword.requestFocus();
         }
         else if (connect()) {
-            LOGGER.info(String.format("onactionLogin()/ login: %s; password: %s", login, password));
+            LOGGER.info(format("onactionLogin()/ login: %s; password: %s", login, password));
 
             treadInputStream = new Thread(this::runTreadInputStream);
             treadInputStream.start();
@@ -456,7 +505,7 @@ public class Controller implements Initializable {
         }
         else if (changeNicknameMode == MODE_CHANGE_NICKNAME) { //< включен режим смены имени
             boolean b = alertConfirmationYesNo (ALERT_HEADER_RENAMING,
-                                                String.format (PROMPT_CONFIRM_NEW_NICKNAME, message));
+                                                format (PROMPT_CONFIRM_NEW_NICKNAME, message));
             if (b == ANSWER_YES)
                 boolSent = network.sendMessageToServer(CMD_CHANGE_NICKNAME, message);
         }
@@ -545,7 +594,7 @@ public class Controller implements Initializable {
     - вызов onCmdExit для изменения некоторых переменных и остановки доп.потоков;
     - вызов disconnect().
 */
-        LOGGER.debug(String.format("closeSession() вызван с параметром: %s", prompt));
+        LOGGER.debug(format("closeSession() вызван с параметром: %s", prompt));
         network.sendMessageToServer(CMD_EXIT);   //< выполняется при необходимости
         onCmdExit (prompt); //< модно не синхронизировать, т.к. в этот блок есть доступ только у threadJfx
         network.disconnect();
@@ -555,29 +604,6 @@ public class Controller implements Initializable {
     public void print (String s) {System.out.print(s);}
 
     public void println (String s) {System.out.print("\n" + s);}
-
-    public static class ChatMessage implements Serializable {
-        private final String name, text;   //< Serializable
-        private final boolean inputMsg, privateMsg;
-        private final LocalDateTime ldt = LocalDateTime.now(); //< Serializable (сейчас не используется)
-
-        public ChatMessage (String name, String message, boolean input, boolean prv) {
-            if (validateStrings (name, message)) {
-                this.name = name;
-                text = message;
-                inputMsg = input;
-                privateMsg = prv;
-            }
-            else if (DEBUG) throw new IllegalArgumentException();
-        }
-
-        @Override public String toString () {
-            String format = FORMAT_CHATMSG;
-            if (privateMsg)
-                format = inputMsg ? FORMAT_PRIVATEMSG_TOYOU : FORMAT_PRIVATEMSG_FROMYOU;
-            return String.format (format, name, text);
-        }
-    }
 
 /** Вызываем {@code interrupt()} для потоков {@code threadListenServerCommands} и {@code threadCommandDispatcher}. */
     private void interruptQueueThreads () {

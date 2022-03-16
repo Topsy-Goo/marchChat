@@ -4,7 +4,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 public class ServerApp {
-    public static final boolean DEBUG = true; //< для отладки
+    public static final boolean DEBUG = false; //< для отладки
     public static final String CMD_CHAT_MSG = "/chat";
     public static final String CMD_PRIVATE_MSG = "/w";
     public static final String CMD_EXIT = "/exit";

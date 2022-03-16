@@ -10,3 +10,5 @@
 /фрагменты.java
 /описание.txt
 *.class
+*.chat
+/backup.files/
